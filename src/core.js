@@ -100,7 +100,76 @@ export function occasionsOn(day) {
 export const nextOccurrence = (o, from = today()) => { for (let i = 0; i < 367; i++) { const d = addDays(from, i); if (occursOn(o, d)) return d; } return ''; };
 export const stayOn = (g, day) => (g.stays || []).find((s) => s.checkIn && s.checkIn <= day && (!s.checkOut || s.checkOut >= day));
 export const yearsSince = (date, day) => { const y = Number(String(date).slice(0, 4)), n = Number(day.slice(0, 4)) - y; return y > 1900 && n > 0 && n < 111 ? n : 0; };
-export const wedTotal = (w) => Math.max(0, num(w.guests) * num(w.perPerson) + (w.extras || []).reduce((s, x) => s + num(x.amount), 0) - num(w.discount));
+/* ---------- fiyat kalemleri ve vergiler ---------- */
+// Her kalem: { name, qty, price, cur, kdv(%), kv(%), mode: 'dahil' | 'ekle' }
+// Konaklama vergisi KDV hariç bedel üzerinden alınır; KDV matrahına konaklama vergisi dahildir.
+export const taxCfg = () => ({ kdv: 10, kv: 2, mode: 'dahil', ...(S.settings.tax || {}) });
+export const KDV_OPTS = [['0', 'Yok'], ['1', '%1'], ['10', '%10'], ['20', '%20']];
+export const kvOpts = () => [['0', 'Yok'], [String(taxCfg().kv), `%${taxCfg().kv}`]];
+export const MODE_OPTS = [['dahil', 'Dahil'], ['ekle', 'Eklenecek']];
+export function itemsOf(col, r) {
+  if (Array.isArray(r.items) && r.items.length) return r.items;
+  const c = r.currency || 'TRY';
+  if (col === 'weddings') {
+    const it = [];
+    if (num(r.perPerson)) it.push({ name: r.menu || 'Menü (kişi başı)', qty: num(r.guests), price: num(r.perPerson), cur: c, kdv: 0, kv: 0, mode: 'dahil' });
+    (r.extras || []).forEach((x) => it.push({ name: x.name, qty: 1, price: num(x.amount), cur: c, kdv: 0, kv: 0, mode: 'dahil' }));
+    if (num(r.discount)) it.push({ name: 'İndirim', qty: 1, price: -num(r.discount), cur: c, kdv: 0, kv: 0, mode: 'dahil' });
+    return it;
+  }
+  if (col === 'opps' && num(r.value)) return [{ name: OPP_KINDS[r.kind] || 'Konaklama', qty: 1, price: num(r.value), cur: c, kdv: 0, kv: 0, mode: 'dahil' }];
+  return [];
+}
+export function lineCalc(it, fallbackQty) {
+  const qty = it.qty === '' || it.qty == null ? (num(fallbackQty) || 1) : num(it.qty);
+  const price = num(it.price), kdv = num(it.kdv) / 100, kv = num(it.kv) / 100;
+  const base = qty * price;
+  const net = it.mode === 'ekle' ? base : base / ((1 + kv) * (1 + kdv));
+  const kvA = net * kv, kdvA = (net + kvA) * kdv;
+  return { ...it, qty, price, net, kvA, kdvA, gross: net + kvA + kdvA, cur: it.cur || 'TRY', kdvR: num(it.kdv), kvR: num(it.kv) };
+}
+export function calcItems(items, fallbackQty) {
+  const lines = (items || []).filter((x) => x && (x.name || num(x.price))).map((x) => lineCalc(x, fallbackQty));
+  const by = {};
+  lines.forEach((l) => {
+    const t = by[l.cur] || (by[l.cur] = { net: 0, kv: 0, kvR: {}, kdv: {}, gross: 0 });
+    t.net += l.net; t.gross += l.gross;
+    if (l.kvA) { t.kv += l.kvA; t.kvR[l.kvR] = (t.kvR[l.kvR] || 0) + l.kvA; }
+    if (l.kdvA) t.kdv[l.kdvR] = (t.kdv[l.kdvR] || 0) + l.kdvA;
+  });
+  const curs = Object.keys(by).sort((a, b) => by[b].gross - by[a].gross);
+  return { lines, by, curs, main: curs[0] || 'TRY' };
+}
+export const recCalc = (col, r) => calcItems(itemsOf(col, r), col === 'weddings' ? r.guests : 1);
+export const recTotals = (col, r) => { const c = recCalc(col, r); return Object.fromEntries(c.curs.map((k) => [k, c.by[k].gross])); };
+// Teklif tablosu için satırlar (tüm çıktılar bunu kullanır)
+export function priceRows(col, r) {
+  const c = recCalc(col, r);
+  const taxNote = (l) => { const t = []; if (l.kdvR) t.push(`KDV %${l.kdvR}`); if (l.kvR) t.push(`Konaklama V. %${l.kvR}`); return t.length ? `${t.join(' + ')} ${l.mode === 'ekle' ? 'hariç' : 'dahil'}` : ''; };
+  const rows = c.lines.map((l) => [[l.name, l.qty !== 1 ? `${fmtNum(l.qty)} × ${money(l.price, l.cur)}` : '', taxNote(l)].filter(Boolean).join(' — '), money(l.mode === 'ekle' ? l.qty * l.price : l.gross, l.cur)]);
+  const sums = [], totals = [], foot = [];
+  const anyTax = c.lines.some((l) => l.kdvA || l.kvA), anyAdd = c.lines.some((l) => l.mode === 'ekle' && (l.kdvA || l.kvA));
+  c.curs.forEach((k) => {
+    const t = c.by[k]; const suf = c.curs.length > 1 ? ` (${k})` : '';
+    if (anyTax) {
+      const s0 = [[`Ara toplam (vergiler hariç)${suf}`, money(t.net, k)]];
+      Object.keys(t.kvR).forEach((rt) => s0.push([`Konaklama vergisi %${rt}${anyAdd ? '' : ' (dahil)'}${suf}`, money(t.kvR[rt], k)]));
+      Object.keys(t.kdv).sort().forEach((rt) => s0.push([`KDV %${rt}${anyAdd ? '' : ' (dahil)'}${suf}`, money(t.kdv[rt], k)]));
+      sums.push(...s0); s0.forEach((x, i) => foot.push([...x, i === 0 ? 's0' : 's']));
+    }
+    const tt = [`Genel toplam${anyTax ? ' (vergiler dahil)' : ''}${suf}`, money(t.gross, k)]; totals.push(tt); foot.push([...tt, 't']);
+  });
+  const after = [];
+  if (col === 'weddings' && num(r.deposit)) after.push(['Rezervasyon için kapora', money(num(r.deposit), r.currency || c.main)]);
+  return { rows, sums, totals, foot, after, total: totals[0] || ['Toplam', money(0)] };
+}
+export const taxNoteText = (col, r) => {
+  const c = recCalc(col, r); const ls = c.lines.filter((l) => l.kdvA || l.kvA); if (!ls.length) return '';
+  const hasKv = ls.some((l) => l.kvA), allIn = ls.every((l) => l.mode !== 'ekle'), allAdd = ls.every((l) => l.mode === 'ekle');
+  const what = hasKv ? 'KDV ve konaklama vergisi' : 'KDV';
+  return allIn ? `Fiyatlara ${what} dahildir.` : allAdd ? `Fiyatlara ${what} ayrıca eklenmiştir.` : `Vergilerin dahil / hariç durumu kalemlerde belirtilmiştir.`;
+};
+export const wedTotal = (w) => { const c = recCalc('weddings', w); return c.by[w.currency || c.main] ? c.by[w.currency || c.main].gross : 0; };
 export const recTitle = (col, r) => (!r ? '' : col === 'weddings' ? r.couple : col === 'opps' ? r.title : r.name);
 export const related = (col, id) => sortBy(S.data.activities.filter((a) => a.ref && a.ref.col === col && a.ref.id === id), (a) => a.date + String(a.createdAt || ''), -1);
 export const relTasks = (col, id) => sortBy(S.data.tasks.filter((t) => t.ref && t.ref.col === col && t.ref.id === id), (t) => (t.done ? '9' : '0') + (t.due || '9999'));
@@ -154,26 +223,31 @@ function inputHtml(f, v, attr) {
   }
   if (f.type === 'textarea') return `<textarea ${common}>${esc(val)}</textarea>`;
   const t = f.type || 'text';
-  const extra = t === 'number' ? 'inputmode="decimal" step="any" min="0"' : t === 'tel' ? 'inputmode="tel"' : '';
+  const extra = t === 'number' ? `inputmode="decimal" step="any" ${f.neg ? '' : 'min="0"'}` : t === 'tel' ? 'inputmode="tel"' : '';
   return `<input type="${t === 'number' ? 'number' : t}" value="${esc(val)}" ${extra} ${common}>`;
 }
 function subRowHtml(f, row = {}) {
-  return `<div class="subrow" style="--n:${f.sub.length}">${f.sub.map((s) => inputHtml(s, row[s.k], `data-sub="${s.k}" class="inp" aria-label="${esc(s.ph || s.k)}"`)).join('')}<button type="button" class="x" data-act="rowDel" title="Satırı sil">${ic('x')}</button></div>`;
+  return `<div class="subrow ${f.cls || ''}" style="--n:${f.sub.length}">${f.sub.map((s, i) => { const ctl = inputHtml(s, row[s.k], `data-sub="${s.k}" class="inp" aria-label="${esc((f.heads && f.heads[i]) || s.ph || s.k)}"`); return f.heads ? `<label class="sc"><span>${esc(f.heads[i])}</span>${ctl}</label>` : ctl; }).join('')}<button type="button" class="x" data-act="rowDel" title="Satırı sil">${ic('x')}</button></div>`;
 }
 function fieldHtml(f, data) {
   if (f.type === 'section') return `<div class="fld fsec"><h4>${esc(f.label)}</h4>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
   if (f.type === 'rows') {
     const rows = data[f.k] || [];
-    return `<div class="fld"><label>${esc(f.label)}</label><div class="rows" data-rows="${f.k}">${rows.map((r) => subRowHtml(f, r)).join('')}</div>
-      <div><button type="button" class="btn sm" data-act="rowAdd" data-k="${f.k}">${ic('plus')} ${esc(f.addLabel || 'Satır ekle')}</button></div></div>`;
+    return `<div class="fld"><label>${esc(f.label)}</label>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}${f.heads ? `<div class="subhead ${f.cls || ''}" style="--n:${f.sub.length}">${f.heads.map((h) => `<span>${esc(h)}</span>`).join('')}<span></span></div>` : ''}<div class="rows" data-rows="${f.k}">${rows.map((r) => subRowHtml(f, r)).join('')}</div>
+      <div><button type="button" class="btn sm" data-act="rowAdd" data-k="${f.k}">${ic('plus')} ${esc(f.addLabel || 'Satır ekle')}</button></div>${f.summary ? `<div class="rowsum" data-sum="${f.k}"></div>` : ''}</div>`;
   }
   return `<div class="fld ${f.half ? 'half' : ''}"><label for="f_${f.k}">${esc(f.label)}${f.req ? ' *' : ''}</label>${inputHtml(f, data[f.k], `id="f_${f.k}" name="${f.k}"`)}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
 }
+function readRows(frm, f) {
+  return $$(`[data-rows="${f.k}"] .subrow`, frm).map((row) => {
+    const o = {}; f.sub.forEach((s) => { const el = $(`[data-sub="${s.k}"]`, row); o[s.k] = s.type === 'number' ? (el.value === '' ? '' : num(el.value)) : el.value.trim(); }); return o;
+  }).filter((o) => f.sub.some((s) => s.type !== 'select' && o[s.k] !== '' && o[s.k] != null));
+}
 let formCtx = null;
-export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel = 'Kaydet', intro = '' }) {
+export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel = 'Kaydet', intro = '', wide = false }) {
   formCtx = { fields };
   const r = $('#modal');
-  r.innerHTML = `<div class="ov center"><form class="modal" id="frm" novalidate>
+  r.innerHTML = `<div class="ov center"><form class="modal" id="frm" novalidate ${wide ? 'style="width:min(980px,100%)"' : ''}>
     <div class="mh"><h2>${esc(title)}</h2><button type="button" class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div>
     <div class="mb">${intro}<div class="form">${fields.map((f) => fieldHtml(f, data)).join('')}<div class="err" id="frmErr" hidden></div></div></div>
     <div class="mf">${onDelete ? '<button type="button" class="btn danger sp" id="frmDel">Sil</button>' : ''}<button type="button" class="btn" data-act="closeModal">Vazgeç</button><button class="btn pri" type="submit">${esc(saveLabel)}</button></div>
@@ -185,12 +259,7 @@ export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel
     const out = {};
     for (const f of fields) {
       if (f.type === 'section') continue;
-      if (f.type === 'rows') {
-        out[f.k] = $$(`[data-rows="${f.k}"] .subrow`, frm).map((row) => {
-          const o = {}; f.sub.forEach((s) => { const el = $(`[data-sub="${s.k}"]`, row); o[s.k] = s.type === 'number' ? num(el.value) : el.value.trim(); }); return o;
-        }).filter((o) => f.sub.some((s) => o[s.k]));
-        continue;
-      }
+      if (f.type === 'rows') { out[f.k] = readRows(frm, f); continue; }
       const el = frm.elements[f.k];
       let v = el.value.trim();
       if (f.req && !v) { showErr(`"${f.label}" alanı boş bırakılamaz.`); el.focus(); return; }
@@ -202,6 +271,9 @@ export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel
   };
   const del = $('#frmDel', r);
   if (del) del.onclick = () => confirmBox('Bu kayıt kalıcı olarak silinecek. Emin misiniz?', 'Sil', async () => { await onDelete(); closeModal(); });
+  const sums = fields.filter((f) => f.type === 'rows' && f.summary);
+  const upd = () => sums.forEach((f) => { const box = $(`[data-sum="${f.k}"]`, frm); if (box) box.innerHTML = f.summary(readRows(frm, f), (k) => (frm.elements[k] ? frm.elements[k].value : '')); });
+  if (sums.length) { frm.addEventListener('input', upd); frm.addEventListener('change', upd); frm.addEventListener('click', (e) => { if (e.target.closest('[data-act=rowDel],[data-act=rowAdd]')) setTimeout(upd, 0); }); upd(); }
   const first = $('input:not([type=date]),textarea', frm); if (first && window.innerWidth > 900) first.focus();
 }
 export function closeModal() { $('#modal').innerHTML = ''; formCtx = null; }

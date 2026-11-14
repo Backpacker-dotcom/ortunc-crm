@@ -232,3 +232,12 @@ pre.code{background:#1D2A2A;color:#DCE9E6;border-radius:10px;padding:12px;font-s
 .cardwrap{width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#eee}.cardscale{width:794px;height:559px}
 .cardwrap{display:flex;justify-content:center;background:#e9e4da}
 .row .t b .badge{display:inline-block;vertical-align:1px;margin-left:4px}.banner>span{flex:1;min-width:180px}
+
+.subhead{display:grid;gap:6px;grid-template-columns:repeat(var(--n),minmax(0,1fr)) 34px;padding:0 9px;font-size:11.5px;color:var(--muted);font-weight:600}
+.subrow.items,.subhead.items{grid-template-columns:2.4fr .8fr 1.1fr .9fr 1fr 1.25fr 1.25fr 34px}
+.rowsum{margin-top:6px;background:var(--primary-soft);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.rowsum table{width:100%;border-collapse:collapse}.rowsum td{padding:2px 0}.rowsum td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.rowsum tr.t td{font-weight:700;border-top:1px solid #b9d3cd;padding-top:5px}
+@media (max-width:900px){.subhead{display:none}.subrow.items{grid-template-columns:1fr 1fr 34px}.subrow.items > :first-child{grid-column:1/3}}
+
+.subrow .sc{display:flex;flex-direction:column;gap:2px;min-width:0}.subrow .sc>span{display:none;font-size:11px;color:var(--muted);font-weight:600}
+@media (max-width:900px){.subrow.items{grid-template-columns:1fr 1fr;position:relative;padding-right:38px}.subrow.items > :first-child{grid-column:1/3}.subrow.items .sc>span{display:block}.subrow.items > .x{position:absolute;top:4px;right:2px}}

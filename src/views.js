@@ -2,7 +2,7 @@ import {
   S, A, V, $, $$, esc, ic, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, ACT_ICON, ROLES, STAGE_BADGE,
   today, addDays, iso, MONTHS, MON3, fmtDate, fmtDateLong, fmtRange, money, moneyMap, sumByCur, num, fmtNum, match, initials, waNum,
   byId, userName, stageLabel, sortBy, wedTotal, recTitle, related, relTasks, lastContact, can, toast, stamp, errText, COL_LABEL, openForm, EINV, copyText,
-  occasionsOn, guestOccasions, nextOccurrence, yearsSince,
+  occasionsOn, guestOccasions, nextOccurrence, yearsSince, priceRows, recTotals,
 } from './core.js';
 import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, refLabel } from './forms.js';
 
@@ -231,10 +231,10 @@ V.weddings = {
     if (!D().weddings.length) return empty('Henüz düğün teklifi yok', 'Çiftin bilgilerini, tarihi, kişi başı fiyatı ve ek hizmetleri girin; teklif yazdırmaya hazır olsun.', addBtn('newWedding', 'İlk teklifi ekle', 'weddings'));
     const list = LIST.weddings();
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
-    const tot = sumByCur(list.filter((w) => w.stage !== 'kaybedildi'), wedTotal);
+    const tot = {}; list.filter((w) => w.stage !== 'kaybedildi').forEach((w) => Object.entries(recTotals('weddings', w)).forEach(([k, v]) => { tot[k] = (tot[k] || 0) + v; }));
     return `<p class="muted" style="margin:0 0 10px">${list.length} teklif · kaybedilenler hariç toplam ${moneyMap(tot)}</p><div class="card list">${list.map((w) => `<button class="row" data-act="open" data-col="weddings" data-id="${w.id}">${dateBox(w.date)}
       <div class="t"><b>${esc(w.couple)}${A._blBadge ? A._blBadge('weddings', w) : ''}</b><span>${esc([w.venue, w.guests ? w.guests + ' davetli' : '', userName(w.ownerId)].filter(Boolean).join(' · '))}</span></div>
-      <div class="r"><b>${money(wedTotal(w), w.currency)}</b>${badge(WED_STAGES, w.stage)}${w.stage === 'teklif' && w.offerSentAt ? ' <span class="badge olive">Gönderildi</span>' : ''}${wedConflicts(w).length ? '<br><span class="badge red">Tarih çakışıyor</span>' : ''}</div></button>`).join('')}</div>`;
+      <div class="r"><b>${moneyMap(recTotals('weddings', w))}</b>${badge(WED_STAGES, w.stage)}${w.stage === 'teklif' && w.offerSentAt ? ' <span class="badge olive">Gönderildi</span>' : ''}${wedConflicts(w).length ? '<br><span class="badge red">Tarih çakışıyor</span>' : ''}</div></button>`).join('')}</div>`;
   },
 };
 
@@ -290,6 +290,11 @@ function billingCard(a) {
     ${hasBilling(a) ? dl([['Ticari ünvan', a.invTitle], ['Vergi dairesi', a.taxOffice], ['Vergi no', a.taxNo], ['Fatura adresi', a.invAddress], ['Fatura e-postası', a.invEmail], ['e-Fatura', EINV[a.eInvoice] || ''], ['Ödeme koşulu', a.paymentTerms], ['MERSİS', a.mersis], ['IBAN', a.iban]]) : '<span class="muted">Fatura bilgisi girilmemiş.</span>'}</div>`;
 }
 A.copyBilling = (el) => copyText(billingText(byId('accounts', el.dataset.id)));
+export function priceTable(col, r) {
+  const p = priceRows(col, r);
+  if (!p.rows.length) return '<span class="muted">Fiyat kalemi girilmemiş. Düzenle\'den ekleyin.</span>';
+  return `<table class="tb">${p.rows.map(([a, b]) => `<tr><td>${esc(a)}</td><td class="n">${esc(b)}</td></tr>`).join('')}${p.foot.map(([a, b, k]) => (k === 't' ? `<tr><td><b>${esc(a)}</b></td><td class="n"><b>${esc(b)}</b></td></tr>` : `<tr><td class="muted">${esc(a)}</td><td class="n muted">${esc(b)}</td></tr>`)).join('')}</table>`;
+}
 const foot = (r) => `<p class="muted" style="font-size:12.5px;margin:0">Son güncelleme: ${fmtDate(iso(new Date(r.updatedAt || r.createdAt || Date.now())))}${r.updatedByName ? ' · ' + esc(r.updatedByName) : ''}</p>`;
 
 const SHEETS = {
@@ -321,7 +326,8 @@ const SHEETS = {
     return { title: o.title, body: `
       <div class="acts" style="align-items:center">${stageSel('opps', o, OPP_STAGES)}<span class="badge teal">${esc(OPP_KINDS[o.kind] || '')}</span></div>
       <div class="acts">${contactBtns(o.phone, acc && acc.email)}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} Teklif</button></div>
-      <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Tahmini tutar', o.value ? money(o.value, o.currency) : ''], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
+      <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
+      <div class="card pad"><h3>Fiyat</h3>${priceTable('opps', o)}</div>
       ${A._filesCard ? A._filesCard('opps', o.id) : ''}
       ${relBlocks('opps', o.id)}${foot(o)}` };
   },
@@ -332,13 +338,8 @@ const SHEETS = {
       <div class="acts" style="align-items:center">${stageSel('weddings', w, WED_STAGES)}<span class="badge terra">${esc(w.eventType || 'Düğün')}</span></div>
       <div class="acts">${contactBtns(w.phone, w.email)}<button class="btn sm pri" data-act="offer" data-col="weddings" data-id="${w.id}">${ic('note')} Teklif</button></div>
       <div class="card pad"><h3>Organizasyon</h3>${dl([['Tarih', w.date ? fmtDateLong(w.date) : ''], ['Mekân', w.venue], ['Davetli', w.guests], ['Menü / paket', w.menu], ['Telefon', w.phone], ['E-posta', w.email], ['Kaynak', w.source], ['Sorumlu', userName(w.ownerId)], ['Geçerlilik', fmtDate(w.validUntil)], ['Kayıp nedeni', w.stage === 'kaybedildi' ? w.lossReason : ''], ['Notlar', w.notes]])}</div>
-      <div class="card pad"><h3>Fiyat</h3><table class="tb">
-        <tr><td>${fmtNum(num(w.guests))} kişi × ${money(num(w.perPerson), w.currency)}</td><td class="n">${money(num(w.guests) * num(w.perPerson), w.currency)}</td></tr>
-        ${(w.extras || []).map((x) => `<tr><td>${esc(x.name)}</td><td class="n">${money(num(x.amount), w.currency)}</td></tr>`).join('')}
-        ${num(w.discount) ? `<tr><td>İndirim</td><td class="n">−${money(num(w.discount), w.currency)}</td></tr>` : ''}
-        <tr><td><b>Toplam</b></td><td class="n"><b>${money(tot, w.currency)}</b></td></tr>
-        ${num(w.deposit) ? `<tr><td>İstenen kapora</td><td class="n">${money(num(w.deposit), w.currency)}</td></tr>` : ''}
-        ${paid ? `<tr><td>Alınan kapora</td><td class="n">${money(paid, w.currency)}</td></tr><tr><td>Kalan</td><td class="n"><b>${money(Math.max(0, tot - paid), w.currency)}</b></td></tr>` : ''}</table></div>
+      <div class="card pad"><h3>Fiyat</h3>${priceTable('weddings', w)}
+        ${num(w.deposit) || paid ? `<table class="tb" style="margin-top:8px">${num(w.deposit) ? `<tr><td>İstenen kapora</td><td class="n">${money(num(w.deposit), w.currency)}</td></tr>` : ''}${paid ? `<tr><td>Alınan kapora</td><td class="n">${money(paid, w.currency)}</td></tr><tr><td><b>Kalan</b> (${esc(w.currency || 'TRY')})</td><td class="n"><b>${money(Math.max(0, tot - paid), w.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
       ${A._filesCard ? A._filesCard('weddings', w.id) : ''}
       ${relBlocks('weddings', w.id)}${foot(w)}` };
   },

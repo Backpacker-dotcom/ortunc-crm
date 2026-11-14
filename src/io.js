@@ -2,7 +2,7 @@
 import * as XLSX from 'xlsx';
 import {
   S, A, $, esc, ic, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, today, addDays, fmtDate, fmtDateLong, money, num, fmtNum,
-  byId, userName, stageLabel, wedTotal, toast, stamp, errText, infoModal, closeModal, iso, trLower, digits, can, copyText, confirmBox, recTitle,
+  byId, userName, stageLabel, wedTotal, recCalc, calcItems, toast, stamp, errText, infoModal, closeModal, iso, trLower, digits, can, copyText, confirmBox, recTitle,
 } from './core.js';
 import { newId } from './store.js';
 
@@ -49,8 +49,11 @@ function sheetsFor(col) {
     return [['Grup ve Etkinlik', toRows(d, D.opps.map((o) => ({ ...o, kind: OPP_KINDS[o.kind], stage: stageLabel(OPP_STAGES, o.stage), acc: (byId('accounts', o.accountId) || {}).name, start: fmtDate(o.start), end: fmtDate(o.end), owner: userName(o.ownerId) }))), heads(d)]];
   }
   if (col === 'weddings') {
-    const d = [['couple', 'Çift'], ['date', 'Tarih'], ['venue', 'Mekân'], ['eventType', 'Organizasyon'], ['stage', 'Aşama'], ['guests', 'Davetli'], ['perPerson', 'Kişi Başı'], ['extra', 'Ek Hizmetler'], ['discount', 'İndirim'], ['total', 'Toplam'], ['currency', 'Para Birimi'], ['deposit', 'İstenen Kapora'], ['depositPaid', 'Alınan Kapora'], ['phone', 'Telefon'], ['email', 'E-posta'], ['menu', 'Menü'], ['source', 'Kaynak'], ['owner', 'Sorumlu'], ['lossReason', 'Kayıp Nedeni'], ['notes', 'Notlar']];
-    return [['Düğün Teklifleri', toRows(d, D.weddings.map((w) => ({ ...w, date: fmtDate(w.date), stage: stageLabel(WED_STAGES, w.stage), extra: (w.extras || []).reduce((s, x) => s + num(x.amount), 0), total: wedTotal(w), owner: userName(w.ownerId) }))), heads(d)]];
+    const d = [['couple', 'Çift'], ['date', 'Tarih'], ['venue', 'Mekân'], ['eventType', 'Organizasyon'], ['stage', 'Aşama'], ['guests', 'Davetli'], ['menu', 'Menü'], ['lines', 'Kalemler'], ['net', 'Vergiler Hariç'], ['tax', 'Vergiler'], ['total', 'Genel Toplam'], ['currency', 'Para Birimi'], ['deposit', 'İstenen Kapora'], ['depositPaid', 'Alınan Kapora'], ['phone', 'Telefon'], ['email', 'E-posta'], ['source', 'Kaynak'], ['owner', 'Sorumlu'], ['lossReason', 'Kayıp Nedeni'], ['notes', 'Notlar']];
+    const il = [['w', 'Düğün'], ['name', 'Kalem'], ['qty', 'Miktar'], ['price', 'Birim Fiyat'], ['cur', 'Para Birimi'], ['kdvR', 'KDV %'], ['kvR', 'Konaklama V. %'], ['mode', 'Vergiler'], ['net', 'Vergiler Hariç'], ['kvA', 'Konaklama Vergisi'], ['kdvA', 'KDV'], ['gross', 'Toplam']];
+    const r2 = (n) => Math.round(n * 100) / 100;
+    return [['Düğün Teklifleri', toRows(d, D.weddings.map((w) => { const c = recCalc('weddings', w); const m = c.by[c.main] || { net: 0, gross: 0 }; return { ...w, date: fmtDate(w.date), stage: stageLabel(WED_STAGES, w.stage), lines: c.lines.map((l) => l.name).join(', '), net: r2(m.net), tax: r2(m.gross - m.net), total: r2(m.gross), currency: c.main, owner: userName(w.ownerId) }; })), heads(d)],
+      ['Düğün Kalemleri', toRows(il, D.weddings.flatMap((w) => recCalc('weddings', w).lines.map((l) => ({ ...l, w: w.couple, mode: l.mode === 'ekle' ? 'Eklenecek' : 'Dahil', net: r2(l.net), kvA: r2(l.kvA), kdvA: r2(l.kdvA), gross: r2(l.gross) })))), heads(il)]];
   }
   if (col === 'activities') {
     const d = [['date', 'Tarih'], ['type', 'Tür'], ['ref', 'İlgili Kayıt'], ['subject', 'Konu'], ['note', 'Not'], ['userName', 'Giren']];
@@ -135,16 +138,17 @@ A.loadSample = async () => {
     mk({ name: 'Mehmet Öztürk', phone: '0544 555 30 03', city: 'İstanbul', country: 'Türkiye', tags: [], stays: [] }),
   ];
   const opps = [
-    mk({ title: 'Zeytin Dalı bayi toplantısı', kind: 'toplanti', stage: 'teklif', accountId: acc[2].id, contactName: 'Derya Yıldız', phone: '0541 555 03 31', property: 'Ortunç Otel', start: addDays(t, 30), end: addDays(t, 32), pax: 45, rooms: 24, value: 520000, currency: 'TRY', source: 'E-posta', ownerId: u.uid }),
+    mk({ title: 'Zeytin Dalı bayi toplantısı', kind: 'toplanti', stage: 'teklif', accountId: acc[2].id, contactName: 'Derya Yıldız', phone: '0541 555 03 31', property: 'Ortunç Otel', start: addDays(t, 30), end: addDays(t, 32), pax: 45, rooms: 24, items: [{ name: 'Konaklama (24 oda × 2 gece)', qty: 48, price: 6500, cur: 'TRY', kdv: 10, kv: 2, mode: 'ekle' }, { name: 'Toplantı salonu (2 gün)', qty: 2, price: 25000, cur: 'TRY', kdv: 20, kv: 0, mode: 'ekle' }, { name: 'Yemekler (kişi başı)', qty: 45, price: 2600, cur: 'TRY', kdv: 10, kv: 0, mode: 'ekle' }], value: 520000, currency: 'TRY', source: 'E-posta', ownerId: u.uid }),
     mk({ title: 'Balkan kültür turu grubu', kind: 'grup', stage: 'opsiyon', accountId: acc[3].id, contactName: 'Ivana Petrova', property: 'Elia Otel', start: addDays(t, 55), end: addDays(t, 58), pax: 32, rooms: 16, value: 6800, currency: 'EUR', source: 'Fuar', ownerId: u.uid }),
     mk({ title: 'Mavi Yelken hafta sonu grubu', kind: 'grup', stage: 'kazanildi', accountId: acc[0].id, contactName: 'Selin Aksoy', property: 'Ortunç Otel', start: addDays(t, 12), end: addDays(t, 14), pax: 28, rooms: 14, value: 310000, currency: 'TRY', source: 'Acente', ownerId: u.uid }),
     mk({ title: 'Emeklilik yemeği (40 kişi)', kind: 'yemek', stage: 'talep', contactName: 'Hakan Bey', phone: '0530 555 40 04', property: 'Ortunç Restoran', start: addDays(t, 20), end: addDays(t, 20), pax: 40, value: 96000, currency: 'TRY', source: 'Telefon', ownerId: u.uid }),
     mk({ title: 'Yoga inziva haftası', kind: 'etkinlik', stage: 'kaybedildi', property: 'Elia Antique', start: addDays(t, -20), end: addDays(t, -14), pax: 18, value: 240000, currency: 'TRY', source: 'Instagram', lossReason: 'Tarih dolu', ownerId: u.uid }),
   ];
+  opps.forEach((o) => { if (o.items) { const c = calcItems(o.items, 1); o.value = Math.round(c.by[c.main].gross); o.currency = c.main; } });
   const weds = [
-    mk({ couple: 'Elif & Mert', phone: '0532 555 50 05', date: `${y + 1}-06-12`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'opsiyon', guests: 180, perPerson: 3200, menu: 'Ege menüsü, yerli içecek', extras: [{ name: 'Süsleme ve çiçek', amount: 85000 }, { name: 'DJ ve ses sistemi', amount: 45000 }], discount: 20000, currency: 'TRY', deposit: 150000, depositPaid: 0, validUntil: addDays(t, 10), source: 'Instagram', ownerId: u.uid }),
-    mk({ couple: 'Zeynep & Can', phone: '0533 555 60 06', date: `${y + 1}-09-05`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'sozlesme', guests: 120, perPerson: 3500, menu: 'Deniz ürünleri menüsü', extras: [{ name: 'Konaklama (10 oda, 2 gece)', amount: 180000 }], currency: 'TRY', deposit: 200000, depositPaid: 200000, source: 'Tavsiye', ownerId: u.uid }),
-    mk({ couple: 'Deniz & Arda', phone: '0535 555 70 07', date: `${y + 1}-06-12`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'teklif', guests: 150, perPerson: 3200, currency: 'TRY', validUntil: addDays(t, 7), source: 'Web sitesi', ownerId: u.uid }),
+    mk({ couple: 'Elif & Mert', phone: '0532 555 50 05', date: `${y + 1}-06-12`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'opsiyon', guests: 180, menu: 'Ege menüsü, yerli içecek', items: [{ name: 'Ege menüsü (kişi başı)', qty: '', price: 3200, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }, { name: 'Süsleme ve çiçek', qty: 1, price: 85000, cur: 'TRY', kdv: 20, kv: 0, mode: 'dahil' }, { name: 'DJ ve ses sistemi', qty: 1, price: 45000, cur: 'TRY', kdv: 20, kv: 0, mode: 'dahil' }, { name: 'İndirim', qty: 1, price: -20000, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }], currency: 'TRY', deposit: 150000, depositPaid: 0, validUntil: addDays(t, 10), source: 'Instagram', ownerId: u.uid }),
+    mk({ couple: 'Zeynep & Can', phone: '0533 555 60 06', date: `${y + 1}-09-05`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'sozlesme', guests: 120, menu: 'Deniz ürünleri menüsü', items: [{ name: 'Deniz ürünleri menüsü (kişi başı)', qty: '', price: 3500, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }, { name: 'Konaklama (10 oda × 2 gece)', qty: 20, price: 160, cur: 'EUR', kdv: 10, kv: 2, mode: 'ekle' }], currency: 'TRY', deposit: 200000, depositPaid: 200000, source: 'Tavsiye', ownerId: u.uid }),
+    mk({ couple: 'Deniz & Arda', phone: '0535 555 70 07', date: `${y + 1}-06-12`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'teklif', guests: 150, items: [{ name: 'Menü (kişi başı)', qty: '', price: 3200, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }], currency: 'TRY', validUntil: addDays(t, 7), source: 'Web sitesi', ownerId: u.uid }),
   ];
   const act = (col, r, o) => mk({ ref: { col, id: r.id }, refName: recTitle(col, r), userId: u.uid, userName: u.name, ...o });
   const acts = [

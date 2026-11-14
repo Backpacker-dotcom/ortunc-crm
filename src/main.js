@@ -1,6 +1,6 @@
 import {
   S, A, V, $, $$, esc, ic, ROLES, OPP_STAGES, OPP_KINDS, WED_STAGES, ACT_TYPES, ACC_TYPES, DEFAULT_SETTINGS, MON3, today, fmtDate, money, moneyMap, sumByCur,
-  num, fmtNum, sortBy, wedTotal, lastContact, can, toast, errText, openForm, closeModal, infoModal, confirmBox, copyText, stamp, userName, fmtTs,
+  num, fmtNum, sortBy, wedTotal, taxCfg, KDV_OPTS, MODE_OPTS, lastContact, can, toast, errText, openForm, closeModal, infoModal, confirmBox, copyText, stamp, userName, fmtTs,
 } from './core.js';
 import { localStore, firebaseStore, authMessage, COLS } from './store.js';
 import { renderShell, renderView, renderBody, refresh, renderSheet, guestStats } from './views.js';
@@ -73,13 +73,17 @@ V.reports = {
 /* ================= AYARLAR ================= */
 const lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
 A.editSettings = () => openForm({
-  title: 'Otel bilgileri ve listeler', data: { ...S.settings, properties: S.settings.properties.join('\n'), sources: S.settings.sources.join('\n') },
+  title: 'Otel bilgileri ve listeler', data: { ...S.settings, properties: S.settings.properties.join('\n'), sources: S.settings.sources.join('\n'), tKdv: String(taxCfg().kdv), tKv: taxCfg().kv, tMode: taxCfg().mode },
   fields: [
     { k: 'hotelName', label: 'Otel / işletme adı', req: true }, { k: 'phone', label: 'Telefon', type: 'tel', half: true }, { k: 'email', label: 'E-posta', type: 'email', half: true }, { k: 'address', label: 'Adres' },
     { k: 'properties', label: 'Tesisler / mekânlar', type: 'textarea', hint: 'Her satıra bir tane. Talep ve düğün formlarındaki listelerde çıkar.' },
     { k: 'sources', label: 'Talep kaynakları', type: 'textarea', hint: 'Her satıra bir tane.' },
+    { type: 'section', label: 'Teklif vergileri (yeni kalemlerde varsayılan)' },
+    { k: 'tKdv', label: 'Varsayılan KDV', type: 'select', opts: KDV_OPTS, req: true, half: true },
+    { k: 'tKv', label: 'Konaklama vergisi oranı %', type: 'number', req: true, half: true },
+    { k: 'tMode', label: 'Vergiler varsayılan olarak', type: 'select', opts: MODE_OPTS, req: true },
   ],
-  onSave: async (v) => { await S.store.save('settings', { ...S.settings, ...v, id: 'main', properties: lines(v.properties), sources: lines(v.sources) }); toast('Kaydedildi'); },
+  onSave: async (v) => { const { tKdv, tKv, tMode, ...rest } = v; await S.store.save('settings', { ...S.settings, ...rest, id: 'main', properties: lines(v.properties), sources: lines(v.sources), tax: { kdv: num(tKdv), kv: num(tKv), mode: tMode } }); toast('Kaydedildi'); },
 });
 A.newUser = () => openForm({
   title: 'Yeni kullanıcı', saveLabel: 'Kullanıcıyı oluştur',
@@ -113,7 +117,7 @@ V.settings = {
     const fb = S.store.kind === 'firebase', adm = can.admin(), st = S.settings;
     const perms = [['Yönetici', 'Her şeyi görür ve düzenler; kullanıcıları, ayarları yönetir; kayıt siler.'], ['Satış', 'Acente, misafir, talep, düğün, aktivite ve görev ekler/düzenler. Kayıt silemez.'], ['Ön büro', 'Misafir kayıtlarını, görevleri ve aktiviteleri ekler/düzenler; diğerlerini yalnızca görür.'], ['İzleyici', 'Her şeyi görür, hiçbir şeyi değiştiremez.']];
     return `<div class="grid g2">
-      <div class="card pad"><h3>Otel bilgileri</h3><dl class="dl"><dt>İşletme</dt><dd>${esc(st.hotelName)}</dd><dt>Telefon</dt><dd>${esc(st.phone || '—')}</dd><dt>E-posta</dt><dd>${esc(st.email || '—')}</dd><dt>Tesisler</dt><dd>${esc(st.properties.join(', '))}</dd><dt>Kaynaklar</dt><dd>${esc(st.sources.join(', '))}</dd></dl>
+      <div class="card pad"><h3>Otel bilgileri</h3><dl class="dl"><dt>İşletme</dt><dd>${esc(st.hotelName)}</dd><dt>Telefon</dt><dd>${esc(st.phone || '—')}</dd><dt>E-posta</dt><dd>${esc(st.email || '—')}</dd><dt>Tesisler</dt><dd>${esc(st.properties.join(', '))}</dd><dt>Kaynaklar</dt><dd>${esc(st.sources.join(', '))}</dd><dt>Teklif vergileri</dt><dd>KDV %${taxCfg().kdv} · Konaklama vergisi %${taxCfg().kv} · ${taxCfg().mode === 'ekle' ? 'eklenecek' : 'dahil'}</dd></dl>
         ${adm ? `<div style="margin-top:14px"><button class="btn" data-act="editSettings">${ic('pencil')} Düzenle</button></div>` : ''}</div>
       <div class="card pad"><h3>Excel</h3><p class="muted" style="margin-top:0">Toplu kayıt aktarın ya da tüm veriyi yedek olarak indirin. Aynı adla kayıtlı acenteler atlanır; misafirlerde yeni konaklamalar mevcut kayda eklenir.</p>
         <div class="acts">${can.edit('accounts') ? `<button class="btn" data-act="importPick" data-col="accounts">${ic('upload')} Acente içe aktar</button>` : ''}${can.edit('guests') ? `<button class="btn" data-act="guestImport">${ic('upload')} Misafir içe aktar</button>` : ''}<button class="btn" data-act="exportAll">${ic('download')} Tüm veriyi indir</button></div>

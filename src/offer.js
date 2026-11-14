@@ -3,7 +3,7 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle } from 'docx';
 import {
   S, A, $, esc, ic, OPP_KINDS, today, fmtDate, fmtDateLong, money, num, fmtNum, byId, userName, wedTotal, toast, errText, stamp,
-  copyText, digits, can, confirmBox, closeModal, recTitle, MONTHS,
+  copyText, digits, can, confirmBox, closeModal, recTitle, MONTHS, priceRows, recCalc, recTotals, moneyMap, taxNoteText,
 } from './core.js';
 import { saveFile, printHtml } from './print.js';
 
@@ -30,11 +30,12 @@ export const TAGS = {
     ['organizasyon', 'Organizasyon türü (Düğün, nişan…)', (w) => w.eventType || 'Düğün'],
     ['davetli', 'Davetli sayısı', (w) => (num(w.guests) ? fmtNum(w.guests) : '')],
     ['menü', 'Menü / paket', (w) => w.menu],
-    ['kişi_başı', 'Kişi başı fiyat', (w) => (num(w.perPerson) ? money(num(w.perPerson), w.currency) : '')],
-    ['ara_toplam', 'Davetli × kişi başı', (w) => (num(w.guests) && num(w.perPerson) ? money(num(w.guests) * num(w.perPerson), w.currency) : '')],
-    ['ek_hizmetler', 'Ek hizmet listesi', (w) => (w.extras || []).map((x) => `- ${x.name}: ${money(num(x.amount), w.currency)}`).join('\n')],
-    ['indirim', 'İndirim', (w) => (num(w.discount) ? money(num(w.discount), w.currency) : '')],
-    ['toplam', 'Toplam fiyat', (w) => (num(w.perPerson) || (w.extras || []).length ? money(wedTotal(w), w.currency) : '')],
+    ['kişi_başı', 'İlk kalemin birim fiyatı', (w) => { const l = recCalc('weddings', w).lines[0]; return l && l.price ? money(l.price, l.cur) : ''; }],
+    ['ara_toplam', 'İlk kalemin tutarı', (w) => { const l = recCalc('weddings', w).lines[0]; return l && l.price ? money(l.qty * l.price, l.cur) : ''; }],
+    ['ek_hizmetler', 'Diğer kalemlerin listesi', (w) => recCalc('weddings', w).lines.slice(1).filter((l) => l.price > 0).map((l) => `- ${l.name}: ${money(l.qty * l.price, l.cur)}`).join('\n')],
+    ['indirim', 'İndirim toplamı', (w) => { const ls = recCalc('weddings', w).lines.filter((l) => l.price < 0); return ls.length ? ls.map((l) => money(-l.qty * l.price, l.cur)).join(' + ') : ''; }],
+    ['toplam', 'Genel toplam (vergiler dahil)', (w) => { const t = recTotals('weddings', w); return Object.keys(t).length ? moneyMap(t) : ''; }],
+    ['vergi_notu', 'Vergi notu (KDV dahil / eklenir)', (w) => taxNoteText('weddings', w)],
     ['kapora', 'İstenen kapora', (w) => (num(w.deposit) ? money(num(w.deposit), w.currency) : '')],
     ['geçerlilik', 'Teklif geçerlilik tarihi', (w) => fmtDate(w.validUntil)],
     ['telefon', 'Çiftin telefonu', (w) => w.phone],
@@ -52,7 +53,8 @@ export const TAGS = {
     ['gece', 'Gece sayısı', (o) => (nights(o.start, o.end) ? String(nights(o.start, o.end)) : '')],
     ['kişi', 'Kişi sayısı', (o) => (num(o.pax) ? fmtNum(o.pax) : '')],
     ['oda', 'Oda sayısı', (o) => (num(o.rooms) ? fmtNum(o.rooms) : '')],
-    ['tutar', 'Toplam tutar', (o) => (num(o.value) ? money(num(o.value), o.currency) : '')],
+    ['tutar', 'Genel toplam (vergiler dahil)', (o) => { const t = recTotals('opps', o); return Object.keys(t).length ? moneyMap(t) : ''; }],
+    ['vergi_notu', 'Vergi notu (KDV dahil / eklenir)', (o) => taxNoteText('opps', o)],
     ['geçerlilik', 'Teklif geçerlilik tarihi', (o) => fmtDate(o.validUntil)],
     ['sorumlu', 'Sorumlu kişi', (o) => userName(o.ownerId) || (S.user && S.user.name)],
     ...common(),
@@ -68,7 +70,7 @@ Menü / paket: {menü}
 
 {fiyat_tablosu}
 
-Tarihinizin kesinleşmesi için {kapora} kapora alınmaktadır. Bu teklif {geçerlilik} tarihine kadar geçerlidir.
+{vergi_notu} Tarihinizin kesinleşmesi için {kapora} kapora alınmaktadır. Bu teklif {geçerlilik} tarihine kadar geçerlidir.
 
 Her türlü sorunuz için bize ulaşabilirsiniz.
 
@@ -81,7 +83,7 @@ Saygılarımızla,
 
 {fiyat_tablosu}
 
-Bu teklif {geçerlilik} tarihine kadar geçerlidir. Opsiyon ve ödeme koşulları için bizimle iletişime geçebilirsiniz.
+{vergi_notu} Bu teklif {geçerlilik} tarihine kadar geçerlidir. Opsiyon ve ödeme koşulları için bizimle iletişime geçebilirsiniz.
 
 Saygılarımızla,
 **{sorumlu}**
@@ -100,24 +102,10 @@ export function fill(col, rec, text = template(col)) {
     if (key === 'fiyat_tablosu') return TABLE_TAG;
     if (!map[key]) return m;
     const v = String(map[key](rec) ?? '').trim();
-    if (!v) { missing.add(key); return GAP; }
+    if (!v) { if (['vergi_notu', 'indirim', 'ek_hizmetler'].includes(key)) return ''; missing.add(key); return GAP; }
     return v;
   });
   return { text: out, missing: Array.from(missing) };
-}
-export function priceRows(col, r) {
-  const c = r.currency;
-  if (col === 'weddings') {
-    const rows = [[`${r.menu || r.eventType || 'Organizasyon'} — ${fmtNum(num(r.guests))} kişi × ${money(num(r.perPerson), c)}`, money(num(r.guests) * num(r.perPerson), c)]];
-    (r.extras || []).forEach((x) => rows.push([x.name, money(num(x.amount), c)]));
-    if (num(r.discount)) rows.push(['İndirim', '−' + money(num(r.discount), c)]);
-    const after = [];
-    if (num(r.deposit)) after.push(['Rezervasyon için kapora', money(num(r.deposit), c)]);
-    return { rows, total: ['Toplam', money(wedTotal(r), c)], after };
-  }
-  const n = nights(r.start, r.end);
-  const desc = [OPP_KINDS[r.kind] || 'Konaklama', r.property, n ? n + ' gece' : '', num(r.pax) ? fmtNum(r.pax) + ' kişi' : '', num(r.rooms) ? fmtNum(r.rooms) + ' oda' : ''].filter(Boolean).join(' · ');
-  return { rows: [[desc, money(num(r.value), c)]], total: ['Toplam', money(num(r.value), c)], after: [] };
 }
 // Metni bloklara böl: boş satır = yeni paragraf; tek başına {fiyat_tablosu} satırı = tablo
 export function blocks(text) {
@@ -143,12 +131,12 @@ export const OFFER_CSS = `.offer{font-family:Georgia,"Times New Roman",serif;col
 .offer table{width:100%;border-collapse:collapse;margin:6px 0 18px;font:13.5px/1.4 Arial,sans-serif}
 .offer th{background:#e3efec;text-align:left;padding:8px 10px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#1e5e5a}
 .offer td{padding:8px 10px;border-bottom:1px solid #e3dcd0}.offer td:last-child,.offer th:last-child{text-align:right;white-space:nowrap}
-.offer tr.t td{border-top:2px solid #1d2a2a;border-bottom:0;font-weight:700;font-size:15px}.offer tr.a td{color:#555;border-bottom:0}
+.offer tr.t td{border-top:2px solid #1d2a2a;border-bottom:0;font-weight:700;font-size:15px}.offer tr.s td{color:#555;border-bottom:0;padding-top:4px;padding-bottom:4px;font-size:13px}.offer tr.s0 td{border-top:1px solid #c9c0b0;padding-top:9px}.offer tr.t+tr.s0 td{padding-top:14px}.offer tr.a td{color:#555;border-bottom:0}
 @media screen and (max-width:560px){.offer{padding:18px 16px;font-size:14px}.offer h1{font-size:21px}}
 @media print{.offer .gap{background:none;color:inherit}}`;
 function tableHtml(col, r) {
   const p = priceRows(col, r);
-  return `<table><tr><th>Hizmet</th><th>Tutar</th></tr>${p.rows.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}<tr class="t"><td>${esc(p.total[0])}</td><td>${esc(p.total[1])}</td></tr>${p.after.map(([a, b]) => `<tr class="a"><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table>`;
+  return `<table><tr><th>Hizmet</th><th>Tutar</th></tr>${p.rows.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}${p.foot.map(([a, b, k]) => `<tr class="${k === 't' ? 't' : k === 's0' ? 's s0' : 's'}"><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}${p.after.map(([a, b]) => `<tr class="a"><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table>`;
 }
 export function offerHtml(col, r, text) {
   const st = S.settings;
@@ -160,7 +148,7 @@ export function offerHtml(col, r, text) {
 /* ---------- düz metin ---------- */
 export function offerPlain(col, r, text, wa = false) {
   const p = priceRows(col, r);
-  const tbl = [...p.rows.map(([a, b]) => `${a}: ${b}`), `${wa ? '*' : ''}${p.total[0].toLocaleUpperCase('tr-TR')}: ${p.total[1]}${wa ? '*' : ''}`, ...p.after.map(([a, b]) => `${a}: ${b}`)].join('\n');
+  const tbl = [...p.rows.map(([a, b]) => `${a}: ${b}`), ...p.foot.map(([a, b, k]) => (k === 't' ? `${wa ? '*' : ''}${a.toLocaleUpperCase('tr-TR')}: ${b}${wa ? '*' : ''}` : `${k === 's0' ? '\n' : ''}${a}: ${b}`)), ...p.after.map(([a, b]) => `${a}: ${b}`)].join('\n');
   return blocks(text).map((b) => (b.t === 'table' ? tbl : b.lines.join('\n'))).join('\n\n').replace(/\*\*(.+?)\*\*/g, wa ? '*$1*' : '$1');
 }
 
@@ -171,9 +159,9 @@ const runs = (line, opt = {}) => line.split(/(\*\*.+?\*\*)/g).filter(Boolean).ma
 });
 const noB = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const line = { style: BorderStyle.SINGLE, size: 4, color: 'E3DCD0' };
-function cell(text, { bold, right, fill, top } = {}) {
+function cell(text, { bold, right, fill, top, muted } = {}) {
   return new TableCell({
-    children: [new Paragraph({ alignment: right ? AlignmentType.RIGHT : AlignmentType.LEFT, children: [new TextRun({ text, bold, font: 'Calibri', size: bold ? 24 : 22, color: fill ? '1E5E5A' : undefined })] })],
+    children: [new Paragraph({ alignment: right ? AlignmentType.RIGHT : AlignmentType.LEFT, children: [new TextRun({ text, bold, font: 'Calibri', size: bold ? 24 : muted ? 20 : 22, color: fill ? '1E5E5A' : muted ? '666666' : undefined })] })],
     shading: fill ? { fill: 'E3EFEC' } : undefined, margins: { top: 90, bottom: 90, left: 140, right: 140 },
     borders: { top: top ? { style: BorderStyle.SINGLE, size: 12, color: '1D2A2A' } : noB, bottom: line, left: noB, right: noB },
   });
@@ -183,7 +171,7 @@ function docxTable(col, r) {
   const row = (a, b, o) => new TableRow({ children: [cell(a, o), cell(b, { ...o, right: true })] });
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE }, columnWidths: [7000, 2300],
-    rows: [row('HİZMET', 'TUTAR', { fill: true, bold: true }), ...p.rows.map(([a, b]) => row(a, b)), row(p.total[0], p.total[1], { bold: true, top: true }), ...p.after.map(([a, b]) => row(a, b))],
+    rows: [row('HİZMET', 'TUTAR', { fill: true, bold: true }), ...p.rows.map(([a, b]) => row(a, b)), ...p.foot.map(([a, b, k]) => (k === 't' ? row(a, b, { bold: true, top: true }) : row(a, b, { muted: true }))), ...p.after.map(([a, b]) => row(a, b))],
   });
 }
 export async function offerDocx(col, r, text) {

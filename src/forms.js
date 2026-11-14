@@ -1,6 +1,7 @@
 import {
+  itemsOf, num,
   S, A, EINV, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, CURS, opts, openForm, today, stamp, can, toast,
-  byId, sortBy, recTitle, COL_LABEL, addDays, userName,
+  byId, sortBy, recTitle, COL_LABEL, addDays, userName, taxCfg, KDV_OPTS, kvOpts, MODE_OPTS, calcItems, money, esc,
 } from './core.js';
 
 const userOpts = () => {
@@ -16,6 +17,31 @@ const save = async (col, rec, base) => {
   return id;
 };
 const delFn = (col, rec) => (rec && can.del(col, rec) ? async () => { await S.store.remove(col, rec.id); if (S.sheet && S.sheet.id === rec.id) { S.sheet = null; } toast('Silindi'); A._refresh(); } : null);
+
+
+/* ---------- fiyat kalemleri (para birimi + KDV + konaklama vergisi) ---------- */
+export function itemsField(label, hint) {
+  const t = taxCfg();
+  return {
+    k: 'items', label, type: 'rows', cls: 'items', addLabel: 'Kalem ekle', hint,
+    heads: ['Kalem', 'Miktar', 'Birim fiyat', 'Para birimi', 'KDV', 'Konaklama vergisi', 'Vergiler'],
+    sub: [
+      { k: 'name', ph: 'Kalem' }, { k: 'qty', ph: 'Miktar', type: 'number' }, { k: 'price', ph: 'Birim fiyat', type: 'number', neg: true },
+      { k: 'cur', type: 'select', opts: CURS, req: true, def: 'TRY' }, { k: 'kdv', type: 'select', opts: KDV_OPTS, req: true, def: String(t.kdv) },
+      { k: 'kv', type: 'select', opts: kvOpts(), req: true, def: '0' }, { k: 'mode', type: 'select', opts: MODE_OPTS, req: true, def: t.mode },
+    ],
+    summary: (rows, get) => {
+      const c = calcItems(rows, get('guests') || 1);
+      if (!c.lines.length) return '<span class="muted">Kalem girin; toplamlar burada hesaplanır.</span>';
+      return c.curs.map((k) => { const x = c.by[k]; return `<table>${c.curs.length > 1 ? `<tr><td colspan="2"><b>${k}</b></td></tr>` : ''}
+        <tr><td>Ara toplam (vergiler hariç)</td><td class="n">${money(x.net, k)}</td></tr>
+        ${Object.keys(x.kvR).map((r) => `<tr><td>Konaklama vergisi %${r}</td><td class="n">${money(x.kvR[r], k)}</td></tr>`).join('')}
+        ${Object.keys(x.kdv).sort().map((r) => `<tr><td>KDV %${r}</td><td class="n">${money(x.kdv[r], k)}</td></tr>`).join('')}
+        <tr class="t"><td>Genel toplam</td><td class="n">${money(x.gross, k)}</td></tr></table>`; }).join('<div style="height:8px"></div>');
+    },
+  };
+}
+const cleanItems = (items) => (items || []).map((x) => ({ name: x.name || '', qty: x.qty === '' ? '' : num(x.qty), price: num(x.price), cur: x.cur || 'TRY', kdv: num(x.kdv), kv: num(x.kv), mode: x.mode === 'ekle' ? 'ekle' : 'dahil' }));
 
 export function accountForm(rec) {
   openForm({
@@ -88,7 +114,9 @@ export function guestForm(rec) {
 export function oppForm(rec, preset = {}) {
   openForm({
     title: rec ? 'Talebi düzenle' : 'Yeni grup / etkinlik talebi',
-    data: rec || { kind: 'grup', stage: 'talep', currency: 'TRY', ownerId: S.user.uid, property: S.settings.properties[0], validUntil: addDays(today(), 10), ...preset },
+    wide: true,
+    data: rec ? { ...rec, items: itemsOf('opps', rec) } : { kind: 'grup', stage: 'talep', currency: 'TRY', ownerId: S.user.uid, property: S.settings.properties[0], validUntil: addDays(today(), 10),
+      items: [{ name: 'Konaklama (oda × gece)', qty: '', price: '', cur: 'TRY', kdv: String(taxCfg().kdv), kv: String(taxCfg().kv), mode: taxCfg().mode }], ...preset },
     fields: [
       { k: 'title', label: 'Başlık', req: true, ph: 'ör. X Firması bayi toplantısı' },
       { k: 'kind', label: 'Tür', type: 'select', opts: opts(OPP_KINDS), req: true, half: true },
@@ -101,8 +129,7 @@ export function oppForm(rec, preset = {}) {
       { k: 'end', label: 'Bitiş', type: 'date', half: true },
       { k: 'pax', label: 'Kişi sayısı', type: 'number', half: true },
       { k: 'rooms', label: 'Oda sayısı', type: 'number', half: true },
-      { k: 'value', label: 'Tahmini tutar', type: 'number', half: true },
-      { k: 'currency', label: 'Para birimi', type: 'select', opts: CURS, req: true, half: true },
+      itemsField('Fiyat kalemleri', 'Konaklama, toplantı salonu, yemek gibi kalemleri ayrı girin; her kalemde para birimi ve vergiler (dahil / eklenecek) seçilir. Konaklama vergisi yalnızca konaklama kalemlerine uygulanır.'),
       { k: 'source', label: 'Kaynak', type: 'select', opts: listOpts(S.settings.sources), half: true },
       { k: 'ownerId', label: 'Sorumlu', type: 'select', opts: userOpts(), half: true },
       { k: 'validUntil', label: 'Teklif geçerlilik', type: 'date', half: true },
@@ -112,6 +139,8 @@ export function oppForm(rec, preset = {}) {
     onSave: async (v) => {
       if (v.start && v.end && v.end < v.start) { const e = new Error(); e.userMsg = 'Bitiş tarihi başlangıçtan önce olamaz.'; throw e; }
       if (!v.end) v.end = v.start;
+      v.items = cleanItems(v.items); const c = calcItems(v.items, 1);
+      v.currency = c.main; v.value = c.by[c.main] ? Math.round(c.by[c.main].gross * 100) / 100 : 0;
       if (v.stage !== (rec && rec.stage)) v.stageAt = Date.now();
       const id = await save('opps', v, rec); if (!rec) A.open({ dataset: { col: 'opps', id } });
     },
@@ -122,7 +151,9 @@ export function oppForm(rec, preset = {}) {
 export function weddingForm(rec) {
   openForm({
     title: rec ? 'Düğün teklifini düzenle' : 'Yeni düğün teklifi',
-    data: rec || { stage: 'talep', currency: 'TRY', ownerId: S.user.uid, venue: S.settings.properties[0], validUntil: addDays(today(), 15) },
+    wide: true,
+    data: rec ? { ...rec, items: itemsOf('weddings', rec) } : { stage: 'talep', currency: 'TRY', ownerId: S.user.uid, venue: S.settings.properties[0], validUntil: addDays(today(), 15),
+      items: [{ name: 'Menü (kişi başı)', qty: '', price: '', cur: 'TRY', kdv: String(taxCfg().kdv), kv: '0', mode: taxCfg().mode }] },
     fields: [
       { k: 'couple', label: 'Çift', req: true, ph: 'ör. Elif & Mert' },
       { k: 'phone', label: 'Telefon', type: 'tel', half: true },
@@ -132,11 +163,8 @@ export function weddingForm(rec) {
       { k: 'eventType', label: 'Organizasyon', half: true, ph: 'Düğün, nişan, kına, after party…', def: 'Düğün' },
       { k: 'stage', label: 'Aşama', type: 'select', opts: WED_STAGES, req: true, half: true },
       { k: 'guests', label: 'Davetli sayısı', type: 'number', half: true },
-      { k: 'perPerson', label: 'Kişi başı fiyat', type: 'number', half: true },
-      { k: 'menu', label: 'Menü / paket', ph: 'ör. Ege menüsü, yerli içecek paketi' },
-      { k: 'extras', label: 'Ek hizmetler', type: 'rows', addLabel: 'Ek hizmet ekle', sub: [{ k: 'name', ph: 'Hizmet (süsleme, müzik, konaklama…)' }, { k: 'amount', ph: 'Tutar', type: 'number' }] },
-      { k: 'discount', label: 'İndirim', type: 'number', half: true },
-      { k: 'currency', label: 'Para birimi', type: 'select', opts: CURS, req: true, half: true },
+      { k: 'menu', label: 'Menü / paket', half: true, ph: 'ör. Ege menüsü, yerli içecek paketi' },
+      itemsField('Fiyat kalemleri', 'Her kalemde para birimini, KDV ve konaklama vergisini, vergilerin fiyata dahil mi yoksa üstüne mi ekleneceğini seçin. Miktar boşsa davetli sayısı kullanılır. İndirim için eksi fiyat girin.'),
       { k: 'deposit', label: 'İstenen kapora', type: 'number', half: true },
       { k: 'depositPaid', label: 'Alınan kapora', type: 'number', half: true },
       { k: 'validUntil', label: 'Teklif geçerlilik', type: 'date', half: true },
@@ -147,6 +175,8 @@ export function weddingForm(rec) {
     ],
     onSave: async (v) => {
       if (v.stage !== (rec && rec.stage)) v.stageAt = Date.now();
+      v.items = cleanItems(v.items); const c = calcItems(v.items, v.guests || 1);
+      v.currency = c.main; v.perPerson = null; v.extras = null; v.discount = null;
       const id = await save('weddings', v, rec); if (!rec) A.open({ dataset: { col: 'weddings', id } });
     },
     onDelete: delFn('weddings', rec),
