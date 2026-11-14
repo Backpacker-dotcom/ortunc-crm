@@ -1,7 +1,7 @@
 import {
   House, Building2, Users, Handshake, Heart, ListChecks, CalendarDays, ChartColumn, Settings, Plus, Search, X, Phone, Mail,
   MessageCircle, Check, ChevronLeft, ChevronRight, Printer, Download, Upload, Pencil, Menu, MapPin, StickyNote,
-  Presentation, Share2, LogOut, Briefcase, Flag, Cake, TriangleAlert, Copy, BedDouble,
+  Presentation, Share2, LogOut, Briefcase, Flag, Cake, TriangleAlert, Copy, BedDouble, Ban,
 } from 'lucide';
 
 const ICONS = {
@@ -9,7 +9,7 @@ const ICONS = {
   chart: ChartColumn, settings: Settings, plus: Plus, search: Search, x: X, phone: Phone, mail: Mail, wa: MessageCircle,
   check: Check, left: ChevronLeft, right: ChevronRight, printer: Printer, download: Download, upload: Upload, pencil: Pencil,
   menu: Menu, pin: MapPin, note: StickyNote, meeting: Presentation, share: Share2, logout: LogOut, briefcase: Briefcase,
-  flag: Flag, cake: Cake, warn: TriangleAlert, copy: Copy, bed: BedDouble,
+  flag: Flag, cake: Cake, warn: TriangleAlert, copy: Copy, bed: BedDouble, ban: Ban,
 };
 export const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${(ICONS[n] || []).map(([t, a]) => `<${t} ${Object.entries(a).map(([k, v]) => `${k}="${v}"`).join(' ')}/>`).join('')}</svg>`;
 
@@ -28,7 +28,7 @@ export const ACT_ICON = { ziyaret: 'briefcase', telefon: 'phone', eposta: 'mail'
 export const ROLES = { yonetici: 'Yönetici', satis: 'Satış', onburo: 'Ön büro', izleyici: 'İzleyici' };
 export const CURS = [['TRY', '₺ TL'], ['EUR', '€ Euro'], ['USD', '$ Dolar'], ['GBP', '£ Sterlin']];
 export const CUR_SYM = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
-export const COL_LABEL = { accounts: 'Acente / Firma', guests: 'Misafir', opps: 'Grup & Etkinlik', weddings: 'Düğün' };
+export const COL_LABEL = { accounts: 'Acente / Firma', guests: 'Misafir', opps: 'Grup & Etkinlik', weddings: 'Düğün', blacklist: 'Kara liste' };
 export const EINV = { efatura: 'e-Fatura mükellefi', earsiv: 'e-Arşiv (mükellef değil)', yurtdisi: 'Yurt dışı firma' };
 export const fmtSize = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
 export const STAGE_BADGE = { talep: '', teklif: 'gold', gorusme: 'gold', gezi: 'gold', opsiyon: 'terra', kazanildi: 'olive', sozlesme: 'olive', kaybedildi: 'red' };
@@ -43,7 +43,7 @@ export const DEFAULT_SETTINGS = {
 /* ---------- durum ---------- */
 export const S = {
   store: null, gate: 'loading', gateInfo: {}, user: null, view: 'pano', q: '', f: {},
-  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], users: [] },
+  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], blacklist: [], users: [] },
   settings: { ...DEFAULT_SETTINGS }, sheet: null, calMonth: null, repYear: new Date().getFullYear(),
 };
 export const A = {}; // eylemler (data-act)
@@ -112,7 +112,7 @@ export const can = {
   edit: (col) => {
     const r = S.user && S.user.role;
     if (r === 'yonetici' || r === 'satis') return true;
-    if (r === 'onburo') return ['guests', 'tasks', 'activities'].includes(col);
+    if (r === 'onburo') return ['guests', 'tasks', 'activities', 'blacklist'].includes(col);
     return false;
   },
   del: (col, rec) => {

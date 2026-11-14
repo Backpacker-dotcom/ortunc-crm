@@ -56,11 +56,15 @@ function sheetsFor(col) {
     const d = [['date', 'Tarih'], ['type', 'Tür'], ['ref', 'İlgili Kayıt'], ['subject', 'Konu'], ['note', 'Not'], ['userName', 'Giren']];
     return [['Aktiviteler', toRows(d, S.data.activities.map((a) => ({ ...a, date: fmtDate(a.date), type: ACT_TYPES[a.type], ref: a.ref ? (recTitle(a.ref.col, byId(a.ref.col, a.ref.id)) || a.refName) : '' }))), heads(d)]];
   }
+  if (col === 'blacklist') {
+    const d = [['name', 'Ad Soyad'], ['phone', 'Telefon'], ['email', 'E-posta'], ['reason', 'Sebep'], ['detail', 'Ne Oldu'], ['date', 'Olay Tarihi'], ['room', 'Oda / Rez. No'], ['amount', 'Alacak'], ['addedByName', 'Ekleyen']];
+    return [['Kara Liste', toRows(d, S.data.blacklist.map((b) => ({ ...b, reason: (A._BL || {})[b.reason] || '', date: fmtDate(b.date) }))), heads(d)]];
+  }
   const d = [['title', 'Görev'], ['due', 'Tarih'], ['done', 'Durum'], ['who', 'Atanan'], ['ref', 'İlgili Kayıt'], ['note', 'Not']];
   return [['Görevler', toRows(d, S.data.tasks.map((t) => ({ ...t, due: fmtDate(t.due), done: t.done ? 'Tamamlandı' : 'Açık', who: userName(t.assigneeId), ref: t.ref ? (recTitle(t.ref.col, byId(t.ref.col, t.ref.id)) || t.refName) : '' }))), heads(d)]];
 }
-A.exportCol = (el) => { const col = el.dataset.col; writeBook(`Ortunc-CRM-${{ accounts: 'Acenteler', guests: 'Misafirler', opps: 'Grup-Etkinlik', weddings: 'Dugun-Teklifleri' }[col]}-${today()}.xlsx`, sheetsFor(col)); };
-A.exportAll = () => writeBook(`Ortunc-CRM-Tum-Veriler-${today()}.xlsx`, ['accounts', 'guests', 'opps', 'weddings', 'activities', 'tasks'].flatMap(sheetsFor));
+A.exportCol = (el) => { const col = el.dataset.col; writeBook(`Ortunc-CRM-${{ accounts: 'Acenteler', guests: 'Misafirler', opps: 'Grup-Etkinlik', weddings: 'Dugun-Teklifleri', blacklist: 'Kara-Liste' }[col]}-${today()}.xlsx`, sheetsFor(col)); };
+A.exportAll = () => writeBook(`Ortunc-CRM-Tum-Veriler-${today()}.xlsx`, ['accounts', 'guests', 'opps', 'weddings', 'activities', 'tasks', 'blacklist'].flatMap(sheetsFor));
 A.template = (el) => { const col = el.dataset.col; writeBook(col === 'accounts' ? 'Acente-Aktarim-Sablonu.xlsx' : 'Misafir-Aktarim-Sablonu.xlsx', [[col === 'accounts' ? 'Acenteler' : 'Misafirler', [], heads(C[col])]]); };
 
 /* ---------- içe aktarma ---------- */

@@ -7,7 +7,7 @@ import {
 import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, refLabel } from './forms.js';
 
 export const NAV = [
-  ['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['opps', 'Grup & Etkinlik', 'handshake'],
+  ['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban'], ['opps', 'Grup & Etkinlik', 'handshake'],
   ['weddings', 'Düğün Teklifleri', 'heart'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar'], ['reports', 'Raporlar', 'chart'], ['settings', 'Ayarlar', 'settings'],
 ];
 const TABS = [['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['opps', 'Talepler', 'handshake'], ['weddings', 'Düğün', 'heart']];
@@ -73,7 +73,7 @@ A.open = (el) => { S.sheet = { col: el.dataset.col, id: el.dataset.id }; renderS
 A.closeSheet = () => { S.sheet = null; renderSheet(); };
 A.newAccount = () => accountForm(); A.newGuest = () => guestForm(); A.newOpp = () => oppForm(); A.newWedding = () => weddingForm();
 A.newTask = () => taskForm(); A.newActivity = () => activityForm();
-A.edit = (el) => { const r = byId(el.dataset.col, el.dataset.id); if (!r) return; ({ accounts: accountForm, guests: guestForm, opps: oppForm, weddings: weddingForm })[el.dataset.col](r); };
+A.edit = (el) => { const r = byId(el.dataset.col, el.dataset.id); if (!r) return; if (el.dataset.col === 'blacklist') return A.blEdit(el); ({ accounts: accountForm, guests: guestForm, opps: oppForm, weddings: weddingForm })[el.dataset.col](r); };
 A.addAct = (el) => activityForm(el.dataset.col, el.dataset.id);
 A.addTask = (el) => taskForm(el.dataset.col, el.dataset.id);
 A.addOppFor = (el) => { const a = byId('accounts', el.dataset.id); oppForm(null, { accountId: a.id, contactName: (a.contacts && a.contacts[0] && a.contacts[0].name) || '', phone: (a.contacts && a.contacts[0] && a.contacts[0].phone) || a.phone || '' }); };
@@ -196,7 +196,7 @@ V.guests = {
     if (!D().guests.length) return empty('Henüz misafir kaydı yok', 'Misafirlerinizi tercihleri, özel günleri ve konaklama geçmişiyle birlikte kaydedin.', addBtn('newGuest', 'İlk misafiri ekle', 'guests'));
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
     return `<div class="card list">${list.map((g) => { const s = guestStats(g); return `<button class="row" data-act="open" data-col="guests" data-id="${g.id}"><div class="av olive">${esc(initials(g.name))}</div>
-      <div class="t"><b>${esc(g.name)} ${isVip(g) ? '<span class="badge gold">VIP</span>' : ''}</b><span>${esc([g.city || g.country, g.phone].filter(Boolean).join(' · '))}</span></div>
+      <div class="t"><b>${esc(g.name)} ${isVip(g) ? '<span class="badge gold">VIP</span>' : ''}${A._blBadge ? A._blBadge('guests', g) : ''}</b><span>${esc([g.city || g.country, g.phone].filter(Boolean).join(' · '))}</span></div>
       <div class="r"><b>${s.n} konaklama</b>${s.last ? 'Son: ' + fmtDate(s.last) : ''}</div></button>`; }).join('')}</div>`;
   },
 };
@@ -232,7 +232,7 @@ V.weddings = {
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
     const tot = sumByCur(list.filter((w) => w.stage !== 'kaybedildi'), wedTotal);
     return `<p class="muted" style="margin:0 0 10px">${list.length} teklif · kaybedilenler hariç toplam ${moneyMap(tot)}</p><div class="card list">${list.map((w) => `<button class="row" data-act="open" data-col="weddings" data-id="${w.id}">${dateBox(w.date)}
-      <div class="t"><b>${esc(w.couple)}</b><span>${esc([w.venue, w.guests ? w.guests + ' davetli' : '', userName(w.ownerId)].filter(Boolean).join(' · '))}</span></div>
+      <div class="t"><b>${esc(w.couple)}${A._blBadge ? A._blBadge('weddings', w) : ''}</b><span>${esc([w.venue, w.guests ? w.guests + ' davetli' : '', userName(w.ownerId)].filter(Boolean).join(' · '))}</span></div>
       <div class="r"><b>${money(wedTotal(w), w.currency)}</b>${badge(WED_STAGES, w.stage)}${w.stage === 'teklif' && w.offerSentAt ? ' <span class="badge olive">Gönderildi</span>' : ''}${wedConflicts(w).length ? '<br><span class="badge red">Tarih çakışıyor</span>' : ''}</div></button>`).join('')}</div>`;
   },
 };
@@ -347,7 +347,10 @@ export function renderSheet() {
   if (!S.sheet) { root.innerHTML = ''; return; }
   const r = byId(S.sheet.col, S.sheet.id);
   if (!r) { root.innerHTML = ''; S.sheet = null; return; }
-  const s = SHEETS[S.sheet.col](r);
+  const s = (SHEETS[S.sheet.col] || A._sheets[S.sheet.col])(r);
+  const bl = A._blBanner && ['guests', 'weddings', 'opps'].includes(S.sheet.col) ? A._blBanner(S.sheet.col, r) : '';
+  if (bl) s.body = bl + s.body;
+  if (!bl && can.edit('blacklist') && ['guests', 'weddings'].includes(S.sheet.col)) s.body += `<div><button class="btn sm danger" data-act="blFromRec" data-col="${S.sheet.col}" data-id="${r.id}">${ic('ban')} Kara listeye ekle</button></div>`;
   root.innerHTML = `<div class="ov"><aside class="sheet"><div class="sh"><div style="flex:1;min-width:0"><div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em">${COL_LABEL[S.sheet.col]}</div><h2>${esc(s.title)}</h2></div>
     <button class="btn sm" data-act="printRec" data-col="${S.sheet.col}" data-id="${r.id}" title="Yazdır / PDF" aria-label="Yazdır">${ic('printer')}</button>${can.edit(S.sheet.col) ? `<button class="btn sm" data-act="edit" data-col="${S.sheet.col}" data-id="${r.id}">${ic('pencil')} Düzenle</button>` : ''}<button class="x" data-act="closeSheet" aria-label="Kapat">${ic('x')}</button></div><div class="sb">${s.body}</div></aside></div>`;
   const n = $('.sheet', root); if (n) n.scrollTop = top;

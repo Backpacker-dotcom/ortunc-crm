@@ -9,6 +9,8 @@ import './print.js';
 import './offer.js';
 import { handleAttach, filesCard } from './files.js';
 import { cardsSettingsCard, guestOccCard } from './cards.js';
+import { blBanner, blBadge, blSheet, BL_REASONS } from './blacklist.js';
+A._blBanner = blBanner; A._blBadge = blBadge; A._sheets = { blacklist: blSheet }; A._BL = BL_REASONS;
 A._guestOccCard = guestOccCard;
 A._filesCard = filesCard;
 import RULES from '../firestore.rules';
@@ -203,6 +205,7 @@ function boot() {
 document.addEventListener('click', (ev) => {
   const ov = ev.target.classList && ev.target.classList.contains('ov') ? ev.target : null;
   if (ov) { if (ov.closest('#sheet')) A.closeSheet(); else if (ov.closest('#modal') && !$('#frm')) closeModal(); return; }
+  if (ev.target.closest('a[href]:not([data-act])')) return;
   const el = ev.target.closest('[data-act]'); if (!el) return;
   if (el.tagName === 'A') ev.preventDefault();
   const fn = A[el.dataset.act]; if (fn) fn(el, ev);
