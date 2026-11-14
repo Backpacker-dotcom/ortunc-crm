@@ -65,8 +65,11 @@ export function guestForm(rec) {
       { k: 'email', label: 'E-posta', type: 'email', half: true },
       { k: 'city', label: 'Şehir', half: true },
       { k: 'country', label: 'Ülke', half: true },
+      { type: 'section', label: 'Doğum günü ve özel günler', hint: 'Yılı bilinmiyorsa günü ve ayı doğru seçin, yıl önemli değil. Bu günlerde misafir "Kutlamalar" ekranına düşer.' },
       { k: 'birthday', label: 'Doğum günü', type: 'date', half: true },
       { k: 'anniversary', label: 'Evlilik yıl dönümü', type: 'date', half: true },
+      { k: 'specials', label: 'Diğer özel günler', type: 'rows', addLabel: 'Özel gün ekle', sub: [{ k: 'label', ph: 'Ne? (ör. Kızının doğum günü)' }, { k: 'date', ph: 'Tarih', type: 'date' }] },
+      { type: 'section', label: 'Diğer bilgiler' },
       { k: 'tags', label: 'Etiketler', ph: 'VIP, Balayı, Kurumsal…', hint: 'Virgülle ayırın. "VIP" yazarsanız VIP filtresinde görünür.' },
       { k: 'prefs', label: 'Tercihler', type: 'textarea', ph: 'Oda tercihi, yastık, kahvaltı alışkanlığı, sevdiği masa…' },
       { k: 'stays', label: 'Konaklamalar', type: 'rows', addLabel: 'Konaklama ekle', sub: [

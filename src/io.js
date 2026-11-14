@@ -39,9 +39,9 @@ function sheetsFor(col) {
       ['Yetkililer', toRows(kd, D.accounts.flatMap((a) => (a.contacts || []).map((c) => ({ ...c, acc: a.name })))), heads(kd)]];
   }
   if (col === 'guests') {
-    const gd = C.guests.slice(0, 10).concat([['n', 'Konaklama Sayısı']]);
+    const gd = C.guests.slice(0, 7).concat([['sp', 'Diğer Özel Günler']], C.guests.slice(7, 10), [['n', 'Konaklama Sayısı']]);
     const sd = [['g', 'Misafir'], ['checkIn', 'Giriş'], ['checkOut', 'Çıkış'], ['property', 'Tesis'], ['room', 'Oda'], ['amount', 'Tutar'], ['note', 'Not']];
-    return [['Misafirler', toRows(gd, D.guests.map((g) => ({ ...g, tags: (g.tags || []).join(', '), birthday: fmtDate(g.birthday), anniversary: fmtDate(g.anniversary), n: (g.stays || []).length }))), heads(gd)],
+    return [['Misafirler', toRows(gd, D.guests.map((g) => ({ ...g, tags: (g.tags || []).join(', '), birthday: fmtDate(g.birthday), anniversary: fmtDate(g.anniversary), sp: (g.specials || []).filter((x) => x.date).map((x) => `${x.label}: ${fmtDate(x.date)}`).join('; '), n: (g.stays || []).length }))), heads(gd)],
       ['Konaklamalar', toRows(sd, D.guests.flatMap((g) => (g.stays || []).map((s) => ({ ...s, g: g.name, checkIn: fmtDate(s.checkIn), checkOut: fmtDate(s.checkOut) })))), heads(sd)]];
   }
   if (col === 'opps') {

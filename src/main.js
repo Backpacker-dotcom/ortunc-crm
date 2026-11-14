@@ -8,6 +8,8 @@ import { handleImportFile } from './io.js';
 import './print.js';
 import './offer.js';
 import { handleAttach, filesCard } from './files.js';
+import { cardsSettingsCard, guestOccCard } from './cards.js';
+A._guestOccCard = guestOccCard;
 A._filesCard = filesCard;
 import RULES from '../firestore.rules';
 
@@ -113,6 +115,7 @@ V.settings = {
       <div class="card pad" style="grid-column:1/-1"><h3>Teklif metinleri</h3><p class="muted" style="margin-top:0">Tekliflerin ana metni. İçindeki <code>{çift}</code>, <code>{tarih}</code>, <code>{toplam}</code> gibi etiketler her teklifte kayıttaki bilgiyle dolar; teklif Word, PDF, WhatsApp ya da e-posta olarak gönderilmeye hazır olur.</p>
         <div class="acts"><button class="btn ${adm ? 'pri' : ''}" data-act="tplOpen" data-col="weddings">${ic('heart')} Düğün teklifi metni</button><button class="btn" data-act="tplOpen" data-col="opps">${ic('handshake')} Grup & etkinlik teklifi metni</button></div>
         <p class="muted" style="font-size:12.5px;margin:10px 0 0">${S.settings.templates && S.settings.templates.weddings ? 'Düğün teklifi için kendi metniniz kullanılıyor.' : 'Şu an örnek metin kullanılıyor; kendi metninizi yapıştırın.'}</p></div>
+      ${cardsSettingsCard()}
       ${fb ? `<div class="card" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Kullanıcılar</h3>${adm ? `<button class="btn sm pri" data-act="newUser">${ic('plus')} Kullanıcı</button>` : ''}</div>
         <div class="list">${sortBy(S.data.users, (u) => u.name || '').map((u) => `<div class="row"><div class="av">${esc((u.name || '?').slice(0, 1).toLocaleUpperCase('tr-TR'))}</div><div class="t"><b>${esc(u.name)}${u.id === S.user.uid ? ' (siz)' : ''}</b><span>${esc(u.email)}</span></div>
           <div class="r"><span class="badge ${u.active === false ? 'red' : 'teal'}">${u.active === false ? 'Kapalı' : esc(ROLES[u.role] || u.role)}</span></div>${adm ? `<div class="acts"><button class="btn sm" data-act="resetUserPass" data-id="${u.id}" title="Şifre sıfırlama e-postası gönder">Şifre</button><button class="btn sm" data-act="editUser" data-id="${u.id}" aria-label="Düzenle">${ic('pencil')}</button></div>` : ''}</div>`).join('')}</div></div>` : ''}

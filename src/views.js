@@ -2,11 +2,12 @@ import {
   S, A, V, $, $$, esc, ic, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, ACT_ICON, ROLES, STAGE_BADGE,
   today, addDays, iso, MONTHS, MON3, fmtDate, fmtDateLong, fmtRange, money, moneyMap, sumByCur, num, fmtNum, match, initials, waNum,
   byId, userName, stageLabel, sortBy, wedTotal, recTitle, related, relTasks, lastContact, can, toast, stamp, errText, COL_LABEL, openForm, EINV, copyText,
+  occasionsOn, guestOccasions, nextOccurrence, yearsSince,
 } from './core.js';
 import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, refLabel } from './forms.js';
 
 export const NAV = [
-  ['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['guests', 'Misafirler', 'users'], ['opps', 'Grup & Etkinlik', 'handshake'],
+  ['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['opps', 'Grup & Etkinlik', 'handshake'],
   ['weddings', 'Düğün Teklifleri', 'heart'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar'], ['reports', 'Raporlar', 'chart'], ['settings', 'Ayarlar', 'settings'],
 ];
 const TABS = [['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['opps', 'Talepler', 'handshake'], ['weddings', 'Düğün', 'heart']];
@@ -59,6 +60,7 @@ export function refresh() {
   });
 }
 A._refresh = refresh;
+A._renderView = () => renderView();
 A.nav = (el) => { S.view = el.dataset.v; S.q = ''; S.f = {}; S.sheet = null; $('#modal').innerHTML = ''; renderSheet(); renderShell(); window.scrollTo(0, 0); };
 A.menu = () => {
   $('#modal').innerHTML = `<div class="ov center"><div class="modal"><div class="mh"><h2>Menü</h2><button class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div>
@@ -113,14 +115,9 @@ function upcomingEvents(days) {
   return sortBy(ev, (e) => e.date);
 }
 function specialDays(days) {
-  const now = new Date(); const out = [];
-  D().guests.forEach((g) => [['birthday', 'Doğum günü'], ['anniversary', 'Yıl dönümü']].forEach(([k, l]) => {
-    if (!g[k]) return; const [, m, d] = g[k].split('-').map(Number); if (!m || !d) return;
-    let nx = new Date(now.getFullYear(), m - 1, d, 12); if (iso(nx) < today()) nx = new Date(now.getFullYear() + 1, m - 1, d, 12);
-    const diff = Math.round((nx - new Date(today() + 'T12:00:00')) / 864e5);
-    if (diff <= days) out.push({ g, label: l, date: iso(nx), diff });
-  }));
-  return sortBy(out, (x) => x.diff);
+  const out = [];
+  for (let i = 0; i <= days; i++) { const d = addDays(today(), i); occasionsOn(d).forEach((o) => out.push({ g: o.g, label: o.label, date: d, diff: i, o })); }
+  return out;
 }
 const taskRow = (t) => {
   const late = !t.done && t.due && t.due < today();
@@ -162,7 +159,7 @@ V.pano = {
       <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Takipler · 7 gün</h3></div>${due.length ? `<div class="list">${due.map(taskRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan takip yok.</div>'}</div>
       <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yaklaşan etkinlikler · 45 gün</h3></div>${ev.length ? `<div class="list">${ev.map(evRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan etkinlik yok.</div>'}</div>
       <div class="card pad"><h3>Grup & etkinlik hunisi</h3><div class="bars">${OPP_STAGES.map(([k, l]) => { const li = D().opps.filter((o) => o.stage === k); return `<div class="bar"><span>${l}</span><div class="tr"><i class="${k === 'kazanildi' ? 'olive' : k === 'kaybedildi' ? 'red' : ''}" style="width:${(li.length / max) * 100}%"></i></div><span class="v">${li.length} · ${moneyMap(sumByCur(li, (o) => num(o.value)))}</span></div>`; }).join('')}</div></div>
-      <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Misafir özel günleri · 21 gün</h3></div>${sp.length ? `<div class="list">${sp.map((x) => `<button class="row" data-act="open" data-col="guests" data-id="${x.g.id}"><div class="av terra">${ic('cake')}</div><div class="t"><b>${esc(x.g.name)}</b><span>${x.label} · ${fmtDate(x.date)}</span></div><div class="r">${x.diff === 0 ? '<span class="badge terra">Bugün</span>' : x.diff + ' gün'}</div></button>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan özel gün yok.</div>'}</div>
+      <div class="card"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Misafir özel günleri · 21 gün</h3><button class="btn sm" data-act="nav" data-v="cel">${ic('cake')} Kutlamalar</button></div>${sp.length ? `<div class="list">${sp.map((x) => `<div class="row"><div class="av terra">${ic('cake')}</div><button class="t" style="border:0;background:none;text-align:left;padding:0" data-act="open" data-col="guests" data-id="${x.g.id}"><b>${esc(x.g.name)}</b><span>${esc(x.label)} · ${fmtDate(x.date)}</span></button><div class="r">${x.diff === 0 ? '<span class="badge terra">Bugün</span>' : x.diff + ' gün'}</div>${x.diff <= 1 ? `<button class="btn sm" data-act="cardOpen" data-g="${x.g.id}" data-k="${x.o.key}" data-d="${x.date}">Kart</button>` : ''}</div>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan özel gün yok.</div>'}</div>
       <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Dikkat</h3></div>${endC.length || cold.length ? `<div class="list">
         ${endC.map((a) => `<button class="row" data-act="open" data-col="accounts" data-id="${a.id}"><div class="av terra">${ic('warn')}</div><div class="t"><b>${esc(a.name)}</b><span>Kontrat ${fmtDate(a.contractEnd)} tarihinde bitiyor</span></div></button>`).join('')}
         ${cold.map((x) => `<button class="row" data-act="open" data-col="accounts" data-id="${x.a.id}"><div class="av">${esc(initials(x.a.name))}</div><div class="t"><b>${esc(x.a.name)}</b><span>${x.lc ? 'Son temas ' + fmtDate(x.lc) : 'Henüz temas kaydı yok'}</span></div><div class="r"><span class="badge gold">60+ gün</span></div></button>`).join('')}
@@ -315,6 +312,7 @@ const SHEETS = {
       <div class="kpis" style="margin:0"><div class="kpi"><small>Konaklama</small><b>${s.n}</b></div><div class="kpi"><small>Gece</small><b>${s.nights}</b></div><div class="kpi"><small>Son giriş</small><b style="font-size:18px">${s.last ? fmtDate(s.last) : '—'}</b></div></div>
       <div class="card pad"><h3>Bilgiler</h3>${dl([['Konum', [g.city, g.country].filter(Boolean).join(', ')], ['Telefon', g.phone], ['E-posta', g.email], ['Doğum günü', g.birthday ? fmtDateLong(g.birthday) : ''], ['Yıl dönümü', g.anniversary ? fmtDateLong(g.anniversary) : ''], ['Tercihler', g.prefs], ['Notlar', g.notes]]) || '<span class="muted">Bilgi girilmemiş.</span>'}</div>
       <div class="card pad"><h3>Konaklama geçmişi</h3>${st.length ? `<div class="scroll-x"><table class="tb"><tr><th>Tarih</th><th>Tesis</th><th>Oda</th><th class="n">Tutar</th></tr>${st.map((x) => `<tr><td>${esc(fmtRange(x.checkIn, x.checkOut))}${x.note ? `<br><span class="muted">${esc(x.note)}</span>` : ''}</td><td>${esc(x.property || '')}</td><td>${esc(x.room || '')}</td><td class="n">${x.amount ? fmtNum(x.amount) : ''}</td></tr>`).join('')}</table></div>` : '<span class="muted">Konaklama eklenmemiş. Düzenle\'den ekleyebilirsiniz.</span>'}</div>
+      ${A._guestOccCard ? A._guestOccCard(g) : ''}
       ${relBlocks('guests', g.id)}${foot(g)}` };
   },
   opps: (o) => {

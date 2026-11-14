@@ -80,6 +80,26 @@ export const stageLabel = (list, k) => (list.find((s) => s[0] === k) || [k, k])[
 export const sortBy = (arr, fn, dir = 1) => arr.slice().sort((a, b) => { const x = fn(a), y = fn(b); return (x > y ? 1 : x < y ? -1 : 0) * dir; });
 export const opts = (obj) => Object.entries(obj);
 
+/* ---------- misafir özel günleri ---------- */
+export const OCC = { dogum: 'Doğum günü', yildonumu: 'Evlilik yıl dönümü', ozel: 'Özel gün' };
+export function guestOccasions(g) {
+  const o = [];
+  if (g.birthday) o.push({ type: 'dogum', key: 'dogum', label: 'Doğum günü', date: g.birthday });
+  if (g.anniversary) o.push({ type: 'yildonumu', key: 'yildonumu', label: 'Evlilik yıl dönümü', date: g.anniversary });
+  (g.specials || []).forEach((s, i) => { if (s && s.date) o.push({ type: 'ozel', key: 'ozel' + i, label: s.label || 'Özel gün', date: s.date }); });
+  return o;
+}
+const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+const mdOn = (date, year) => { let m = String(date).slice(5, 10); if (m === '02-29' && !isLeap(Number(year))) m = '02-28'; return m; };
+export const occursOn = (o, day) => mdOn(o.date, day.slice(0, 4)) === day.slice(5, 10);
+export function occasionsOn(day) {
+  const out = [];
+  S.data.guests.forEach((g) => guestOccasions(g).forEach((o) => { if (occursOn(o, day)) out.push({ ...o, g, day }); }));
+  return out;
+}
+export const nextOccurrence = (o, from = today()) => { for (let i = 0; i < 367; i++) { const d = addDays(from, i); if (occursOn(o, d)) return d; } return ''; };
+export const stayOn = (g, day) => (g.stays || []).find((s) => s.checkIn && s.checkIn <= day && (!s.checkOut || s.checkOut >= day));
+export const yearsSince = (date, day) => { const y = Number(String(date).slice(0, 4)), n = Number(day.slice(0, 4)) - y; return y > 1900 && n > 0 && n < 111 ? n : 0; };
 export const wedTotal = (w) => Math.max(0, num(w.guests) * num(w.perPerson) + (w.extras || []).reduce((s, x) => s + num(x.amount), 0) - num(w.discount));
 export const recTitle = (col, r) => (!r ? '' : col === 'weddings' ? r.couple : col === 'opps' ? r.title : r.name);
 export const related = (col, id) => sortBy(S.data.activities.filter((a) => a.ref && a.ref.col === col && a.ref.id === id), (a) => a.date + String(a.createdAt || ''), -1);

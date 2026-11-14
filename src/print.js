@@ -67,7 +67,7 @@ const RECORD = {
     + sec('Grup & etkinlik talepleri', table(['Talep', 'Tarih', 'Aşama', 'Tutar'], S.data.opps.filter((o) => o.accountId === a.id).map((o) => [o.title, fmtRange(o.start, o.end), stageLabel(OPP_STAGES, o.stage), o.value ? money(num(o.value), o.currency) : '']), [3]))
     + relSections('accounts', a.id),
   guests: (g) => { const s = guestStats(g); return head(g.name, [(g.tags || []).join(', '), [g.city, g.country].filter(Boolean).join(', ')].filter(Boolean).join(' · '))
-    + sec('Bilgiler', kv([['Telefon', g.phone], ['E-posta', g.email], ['Doğum günü', g.birthday ? fmtDateLong(g.birthday) : ''], ['Yıl dönümü', g.anniversary ? fmtDateLong(g.anniversary) : ''], ['Konaklama', `${s.n} konaklama · ${s.nights} gece`], ['Tercihler', g.prefs], ['Notlar', g.notes]]))
+    + sec('Bilgiler', kv([['Telefon', g.phone], ['E-posta', g.email], ['Doğum günü', g.birthday ? fmtDateLong(g.birthday) : ''], ['Yıl dönümü', g.anniversary ? fmtDateLong(g.anniversary) : ''], ['Diğer özel günler', (g.specials || []).filter((x) => x.date).map((x) => `${x.label}: ${fmtDate(x.date)}`).join('\n')], ['Konaklama', `${s.n} konaklama · ${s.nights} gece`], ['Tercihler', g.prefs], ['Notlar', g.notes]]))
     + sec('Konaklama geçmişi', table(['Tarih', 'Tesis', 'Oda', 'Not', 'Tutar'], (g.stays || []).slice().sort((x, y) => String(y.checkIn).localeCompare(String(x.checkIn))).map((x) => [fmtRange(x.checkIn, x.checkOut), x.property, x.room, x.note, x.amount ? fmtNum(x.amount) : '']), [4]))
     + relSections('guests', g.id); },
   opps: (o) => { const acc = byId('accounts', o.accountId); return head(o.title, [OPP_KINDS[o.kind], stageLabel(OPP_STAGES, o.stage)].join(' · '))
