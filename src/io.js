@@ -22,7 +22,8 @@ function writeBook(name, sheets) {
 const rev = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [trLower(v), k]));
 const C = {
   accounts: [['name', 'Firma / Acente'], ['type', 'Tür'], ['status', 'Durum'], ['city', 'Şehir'], ['country', 'Ülke'], ['market', 'Pazar'], ['phone', 'Telefon'], ['email', 'E-posta'], ['web', 'Web'],
-    ['c1name', 'Yetkili'], ['c1title', 'Yetkili Görevi'], ['c1phone', 'Yetkili Telefon'], ['c1email', 'Yetkili E-posta'], ['commission', 'Komisyon %'], ['contractStart', 'Kontrat Başlangıç'], ['contractEnd', 'Kontrat Bitiş'], ['contractNote', 'Kontrat Notu'], ['notes', 'Notlar']],
+    ['c1name', 'Yetkili'], ['c1title', 'Yetkili Görevi'], ['c1phone', 'Yetkili Telefon'], ['c1email', 'Yetkili E-posta'], ['commission', 'Komisyon %'], ['contractStart', 'Kontrat Başlangıç'], ['contractEnd', 'Kontrat Bitiş'], ['contractNote', 'Kontrat Notu'],
+    ['invTitle', 'Ticari Ünvan'], ['taxOffice', 'Vergi Dairesi'], ['taxNo', 'Vergi No'], ['invAddress', 'Fatura Adresi'], ['invEmail', 'Fatura E-postası'], ['paymentTerms', 'Ödeme Koşulu'], ['mersis', 'MERSİS No'], ['iban', 'IBAN'], ['notes', 'Notlar']],
   guests: [['name', 'Ad Soyad'], ['phone', 'Telefon'], ['email', 'E-posta'], ['city', 'Şehir'], ['country', 'Ülke'], ['birthday', 'Doğum Günü'], ['anniversary', 'Yıl Dönümü'], ['tags', 'Etiketler'], ['prefs', 'Tercihler'], ['notes', 'Notlar'],
     ['checkIn', 'Giriş'], ['checkOut', 'Çıkış'], ['property', 'Tesis'], ['room', 'Oda'], ['amount', 'Tutar']],
 };
@@ -80,7 +81,7 @@ export async function handleImportFile(input) {
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
     const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
     const hmap = Object.fromEntries(C[col].map(([k, h]) => [trLower(h), k]));
-    const alias = { 'firma': 'name', 'acente': 'name', 'acente adı': 'name', 'firma adı': 'name', 'ad': 'name', 'isim': 'name', 'misafir': 'name', 'adı soyadı': 'name', 'mail': 'email', 'e-mail': 'email', 'eposta': 'email', 'tel': 'phone', 'gsm': 'phone', 'cep': 'phone', 'il': 'city', 'kontak': 'c1name', 'ilgili kişi': 'c1name', 'not': 'notes', 'giriş tarihi': 'checkIn', 'çıkış tarihi': 'checkOut', 'oda no': 'room', 'doğum tarihi': 'birthday' };
+    const alias = { 'firma': 'name', 'acente': 'name', 'acente adı': 'name', 'firma adı': 'name', 'ad': 'name', 'isim': 'name', 'misafir': 'name', 'adı soyadı': 'name', 'mail': 'email', 'e-mail': 'email', 'eposta': 'email', 'tel': 'phone', 'gsm': 'phone', 'cep': 'phone', 'il': 'city', 'kontak': 'c1name', 'ilgili kişi': 'c1name', 'not': 'notes', 'ünvan': 'invTitle', 'unvan': 'invTitle', 'vergi dairesi': 'taxOffice', 'vd': 'taxOffice', 'vergi no': 'taxNo', 'vkn': 'taxNo', 'vergi numarası': 'taxNo', 'adres': 'invAddress', 'giriş tarihi': 'checkIn', 'çıkış tarihi': 'checkOut', 'oda no': 'room', 'doğum tarihi': 'birthday' };
     const rows = raw.map((r) => { const o = {}; Object.entries(r).forEach(([h, v]) => { const k = hmap[trLower(h).trim()] || alias[trLower(h).trim()]; if (k) o[k] = v; }); return o; }).filter((o) => str(o.name));
     if (!rows.length) { infoModal('Aktarılacak kayıt bulunamadı', `<p>Dosyanın ilk sayfasında "<b>${esc(C[col][0][1])}</b>" başlıklı bir sütun olmalı. Şablonu indirip aynı başlıkları kullanabilirsiniz.</p>`, `<button class="btn" data-act="template" data-col="${col}">${ic('download')} Şablonu indir</button><button class="btn pri" data-act="closeModal">Tamam</button>`); return; }
     let add = [], upd = [], skip = 0;
@@ -91,7 +92,7 @@ export async function handleImportFile(input) {
         const key = trLower(str(r.name)); if (have.has(key) || seen.has(key)) { skip++; return; } seen.add(key);
         const c = { name: str(r.c1name), title: str(r.c1title), phone: str(r.c1phone), email: str(r.c1email) };
         add.push(stamp({ id: newId(), name: str(r.name), type: tRev[trLower(str(r.type))] || 'acente', status: sRev[trLower(str(r.status))] || 'aktif', city: str(r.city), country: str(r.country), market: str(r.market), phone: str(r.phone), email: str(r.email), web: str(r.web),
-          contacts: c.name || c.phone || c.email ? [c] : [], commission: r.commission === '' || r.commission == null ? '' : num(r.commission), contractStart: toIso(r.contractStart), contractEnd: toIso(r.contractEnd), contractNote: str(r.contractNote), notes: str(r.notes) }));
+          contacts: c.name || c.phone || c.email ? [c] : [], commission: r.commission === '' || r.commission == null ? '' : num(r.commission), contractStart: toIso(r.contractStart), contractEnd: toIso(r.contractEnd), contractNote: str(r.contractNote), invTitle: str(r.invTitle), taxOffice: str(r.taxOffice), taxNo: str(r.taxNo).replace(/\s/g, ''), invAddress: str(r.invAddress), invEmail: str(r.invEmail), paymentTerms: str(r.paymentTerms), mersis: str(r.mersis), iban: str(r.iban).replace(/\s/g, '').toUpperCase(), notes: str(r.notes) }));
       });
     } else {
       const keyOf = (n, p) => trLower(str(n)) + '|' + digits(p).slice(-10);

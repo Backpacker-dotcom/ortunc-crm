@@ -227,3 +227,4 @@ pre.code{background:#1D2A2A;color:#DCE9E6;border-radius:10px;padding:12px;font-s
 .kc .kact{display:flex;gap:6px;align-items:center;justify-content:space-between;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);flex-wrap:wrap}
 .kc .kact .btn{margin-left:auto}
 .mf .badge.sp{margin-right:auto}
+.fsec{margin-top:8px;border-top:1px solid var(--line);padding-top:12px}.fsec h4{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--primary)}

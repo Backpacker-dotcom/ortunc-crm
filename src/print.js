@@ -1,7 +1,7 @@
 // Çıktı: dosya kaydetme ve yazdır / PDF (web'de tarayıcının yazdırma penceresi, APK'da Android yazdırma servisi)
 import {
   S, A, $, esc, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, ROLES, today, fmtDate, fmtDateLong, fmtRange, money, moneyMap,
-  sumByCur, num, fmtNum, byId, userName, stageLabel, wedTotal, recTitle, related, relTasks, lastContact, toast, COL_LABEL,
+  sumByCur, num, fmtNum, byId, userName, stageLabel, wedTotal, recTitle, related, relTasks, lastContact, toast, COL_LABEL, EINV, fmtSize,
 } from './core.js';
 import { LIST, guestStats } from './views.js';
 
@@ -52,6 +52,7 @@ const table = (heads, rows, numCols = []) => (rows.length ? `<table><tr>${heads.
 const sec = (t, body) => `<h2>${esc(t)}</h2>${body}`;
 const wrap = (inner) => `<div class="pdoc">${inner}<div class="foot">Ortunç CRM · ${esc(fmtDate(today()))}</div></div>`;
 
+const filesSec = (col, id) => { const fs = S.data.files.filter((f) => f.ref && f.ref.col === col && f.ref.id === id); return fs.length ? sec('Belgeler', table(['Belge', 'Tür', 'Geçerlilik', 'Boyut', 'Yükleyen'], fs.map((f) => [f.title || f.name, ({ kontrat: 'Kontrat', sozlesme: 'İmzalı sözleşme', fiyat: 'Fiyat listesi', teklif: 'Teklif', fatura: 'Fatura / dekont', diger: 'Diğer' })[f.kind] || '', fmtRange(f.validFrom, f.validTo), fmtSize(f.size), f.uploadedByName]))) : ''; };
 function relSections(col, id) {
   const ts = relTasks(col, id), as = related(col, id);
   return sec('Görevler', table(['Tarih', 'Görev', 'Atanan', 'Durum'], ts.map((t) => [fmtDate(t.due), t.title + (t.note ? '\n' + t.note : ''), userName(t.assigneeId), t.done ? 'Tamamlandı' : 'Açık'])))
@@ -60,7 +61,9 @@ function relSections(col, id) {
 const RECORD = {
   accounts: (a) => head(a.name, [ACC_TYPES[a.type], ACC_STATUS[a.status], [a.city, a.country].filter(Boolean).join(', ')].filter(Boolean).join(' · '))
     + sec('Bilgiler', kv([['Pazar', a.market], ['Telefon', a.phone], ['E-posta', a.email], ['Web', a.web], ['Sorumlu', userName(a.ownerId)], ['Komisyon', a.commission !== '' && a.commission != null ? '%' + a.commission : ''], ['Kontrat', fmtRange(a.contractStart, a.contractEnd)], ['Kontrat notu', a.contractNote], ['Son temas', fmtDate(lastContact(a.id))], ['Notlar', a.notes]]))
+    + sec('Fatura bilgileri', kv([['Ticari ünvan', a.invTitle], ['Vergi dairesi', a.taxOffice], ['Vergi no', a.taxNo], ['Fatura adresi', a.invAddress], ['Fatura e-postası', a.invEmail], ['e-Fatura', EINV[a.eInvoice] || ''], ['Ödeme koşulu', a.paymentTerms], ['MERSİS', a.mersis], ['IBAN', a.iban]]))
     + sec('Yetkili kişiler', table(['Ad Soyad', 'Görevi', 'Telefon', 'E-posta'], (a.contacts || []).map((c) => [c.name, c.title, c.phone, c.email])))
+    + filesSec('accounts', a.id)
     + sec('Grup & etkinlik talepleri', table(['Talep', 'Tarih', 'Aşama', 'Tutar'], S.data.opps.filter((o) => o.accountId === a.id).map((o) => [o.title, fmtRange(o.start, o.end), stageLabel(OPP_STAGES, o.stage), o.value ? money(num(o.value), o.currency) : '']), [3]))
     + relSections('accounts', a.id),
   guests: (g) => { const s = guestStats(g); return head(g.name, [(g.tags || []).join(', '), [g.city, g.country].filter(Boolean).join(', ')].filter(Boolean).join(' · '))
@@ -69,11 +72,11 @@ const RECORD = {
     + relSections('guests', g.id); },
   opps: (o) => { const acc = byId('accounts', o.accountId); return head(o.title, [OPP_KINDS[o.kind], stageLabel(OPP_STAGES, o.stage)].join(' · '))
     + sec('Talep', kv([['Acente / firma', acc ? acc.name : ''], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Tahmini tutar', o.value ? money(num(o.value), o.currency) : ''], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]]))
-    + relSections('opps', o.id); },
+    + filesSec('opps', o.id) + relSections('opps', o.id); },
   weddings: (w) => { const c = w.currency; return head(w.couple, [w.eventType || 'Düğün', stageLabel(WED_STAGES, w.stage), w.date ? fmtDateLong(w.date) : ''].filter(Boolean).join(' · '))
     + sec('Organizasyon', kv([['Mekân', w.venue], ['Davetli', w.guests], ['Menü / paket', w.menu], ['Telefon', w.phone], ['E-posta', w.email], ['Kaynak', w.source], ['Sorumlu', userName(w.ownerId)], ['Teklif geçerlilik', fmtDate(w.validUntil)], ['Kayıp nedeni', w.stage === 'kaybedildi' ? w.lossReason : ''], ['Notlar', w.notes]]))
     + sec('Fiyat', `<table><tr><th>Kalem</th><th class="n">Tutar</th></tr><tr><td>${fmtNum(num(w.guests))} kişi × ${esc(money(num(w.perPerson), c))}</td><td class="n">${esc(money(num(w.guests) * num(w.perPerson), c))}</td></tr>${(w.extras || []).map((x) => `<tr><td>${esc(x.name)}</td><td class="n">${esc(money(num(x.amount), c))}</td></tr>`).join('')}${num(w.discount) ? `<tr><td>İndirim</td><td class="n">−${esc(money(num(w.discount), c))}</td></tr>` : ''}<tr class="tot"><td>Toplam</td><td class="n">${esc(money(wedTotal(w), c))}</td></tr>${num(w.deposit) ? `<tr><td>İstenen kapora</td><td class="n">${esc(money(num(w.deposit), c))}</td></tr>` : ''}${num(w.depositPaid) ? `<tr><td>Alınan kapora</td><td class="n">${esc(money(num(w.depositPaid), c))}</td></tr><tr><td><b>Kalan</b></td><td class="n"><b>${esc(money(Math.max(0, wedTotal(w) - num(w.depositPaid)), c))}</b></td></tr>` : ''}</table>`)
-    + relSections('weddings', w.id); },
+    + filesSec('weddings', w.id) + relSections('weddings', w.id); },
 };
 A.printRec = (el) => { const r = byId(el.dataset.col, el.dataset.id); if (!r) return; printHtml(`${COL_LABEL[el.dataset.col]}-${fname(recTitle(el.dataset.col, r))}`, wrap(RECORD[el.dataset.col](r))); };
 

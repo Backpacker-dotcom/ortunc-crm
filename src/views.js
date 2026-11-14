@@ -1,7 +1,7 @@
 import {
   S, A, V, $, $$, esc, ic, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, ACT_ICON, ROLES, STAGE_BADGE,
   today, addDays, iso, MONTHS, MON3, fmtDate, fmtDateLong, fmtRange, money, moneyMap, sumByCur, num, fmtNum, match, initials, waNum,
-  byId, userName, stageLabel, sortBy, wedTotal, recTitle, related, relTasks, lastContact, can, toast, stamp, errText, COL_LABEL, openForm,
+  byId, userName, stageLabel, sortBy, wedTotal, recTitle, related, relTasks, lastContact, can, toast, stamp, errText, COL_LABEL, openForm, EINV, copyText,
 } from './core.js';
 import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, refLabel } from './forms.js';
 
@@ -285,6 +285,13 @@ const relBlocks = (col, id) => {
   return `<div class="card"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Görevler</h3>${can.edit('tasks') ? `<button class="btn sm" data-act="addTask" data-col="${col}" data-id="${id}">${ic('plus')} Görev</button>` : ''}</div>${ts.length ? `<div class="list">${ts.map(taskRow).join('')}</div>` : '<div class="pad muted" style="padding-top:8px">Görev yok.</div>'}</div>
   <div class="card pad"><div style="display:flex;align-items:center;margin-bottom:6px"><h3 style="margin:0;flex:1">Aktivite geçmişi</h3>${can.edit('activities') ? `<button class="btn sm" data-act="addAct" data-col="${col}" data-id="${id}">${ic('plus')} Aktivite</button>` : ''}</div>${as.length ? `<div class="tl">${as.map((a) => actItem(a)).join('')}</div>` : '<div class="muted">Henüz aktivite yok.</div>'}</div>`;
 };
+export const billingText = (a) => [a.invTitle || a.name, a.taxOffice || a.taxNo ? `Vergi dairesi: ${a.taxOffice || '-'}  Vergi no: ${a.taxNo || '-'}` : '', a.invAddress, a.invEmail ? 'Fatura e-postası: ' + a.invEmail : '', a.mersis ? 'MERSİS: ' + a.mersis : '', a.iban ? 'IBAN: ' + a.iban : ''].filter(Boolean).join('\n');
+const hasBilling = (a) => ['invTitle', 'taxOffice', 'taxNo', 'invAddress', 'invEmail', 'eInvoice', 'paymentTerms', 'iban', 'mersis'].some((k) => a[k]);
+function billingCard(a) {
+  return `<div class="card pad"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><h3 style="margin:0;flex:1">Fatura bilgileri</h3>${hasBilling(a) ? `<button class="btn sm" data-act="copyBilling" data-id="${a.id}">${ic('copy')} Kopyala</button>` : ''}${!hasBilling(a) && can.edit('accounts') ? `<button class="btn sm" data-act="edit" data-col="accounts" data-id="${a.id}">${ic('plus')} Ekle</button>` : ''}</div>
+    ${hasBilling(a) ? dl([['Ticari ünvan', a.invTitle], ['Vergi dairesi', a.taxOffice], ['Vergi no', a.taxNo], ['Fatura adresi', a.invAddress], ['Fatura e-postası', a.invEmail], ['e-Fatura', EINV[a.eInvoice] || ''], ['Ödeme koşulu', a.paymentTerms], ['MERSİS', a.mersis], ['IBAN', a.iban]]) : '<span class="muted">Fatura bilgisi girilmemiş.</span>'}</div>`;
+}
+A.copyBilling = (el) => copyText(billingText(byId('accounts', el.dataset.id)));
 const foot = (r) => `<p class="muted" style="font-size:12.5px;margin:0">Son güncelleme: ${fmtDate(iso(new Date(r.updatedAt || r.createdAt || Date.now())))}${r.updatedByName ? ' · ' + esc(r.updatedByName) : ''}</p>`;
 
 const SHEETS = {
@@ -294,6 +301,8 @@ const SHEETS = {
       <div class="acts"><span class="badge teal">${esc(ACC_TYPES[a.type] || '')}</span><span class="badge ${a.status === 'aktif' ? 'olive' : 'gold'}">${esc(ACC_STATUS[a.status] || '')}</span></div>
       <div class="acts">${contactBtns(a.phone, a.email)}${can.edit('opps') ? `<button class="btn sm" data-act="addOppFor" data-id="${a.id}">${ic('plus')} Talep</button>` : ''}</div>
       <div class="card pad"><h3>Bilgiler</h3>${dl([['Konum', [a.city, a.country].filter(Boolean).join(', ')], ['Pazar', a.market], ['Telefon', a.phone], ['E-posta', a.email], ['Web', a.web], ['Sorumlu', userName(a.ownerId)], ['Komisyon', a.commission !== '' && a.commission != null ? '%' + a.commission : ''], ['Kontrat', fmtRange(a.contractStart, a.contractEnd)], ['Kontrat notu', a.contractNote], ['Notlar', a.notes]]) || '<span class="muted">Bilgi girilmemiş.</span>'}</div>
+      ${billingCard(a)}
+      ${A._filesCard ? A._filesCard('accounts', a.id) : ''}
       <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yetkili kişiler</h3></div>${(a.contacts || []).length ? `<div class="list">${a.contacts.map((c) => `<div class="row"><div class="av">${esc(initials(c.name))}</div><div class="t"><b>${esc(c.name)}</b><span>${esc([c.title, c.phone, c.email].filter(Boolean).join(' · '))}</span></div><div class="acts">${c.phone ? `<a class="btn sm" href="tel:${esc(c.phone)}" aria-label="Ara">${ic('phone')}</a><a class="btn sm" href="https://wa.me/${waNum(c.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp">${ic('wa')}</a>` : ''}${c.email ? `<a class="btn sm" href="mailto:${esc(c.email)}" aria-label="E-posta">${ic('mail')}</a>` : ''}</div></div>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yetkili eklenmemiş.</div>'}</div>
       ${ops.length ? `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Grup & etkinlik talepleri</h3></div><div class="list">${ops.map((o) => `<button class="row" data-act="open" data-col="opps" data-id="${o.id}"><div class="t"><b>${esc(o.title)}</b><span>${esc(fmtRange(o.start, o.end))}</span></div><div class="r"><b>${o.value ? money(o.value, o.currency) : ''}</b>${badge(OPP_STAGES, o.stage)}</div></button>`).join('')}</div></div>` : ''}
       ${relBlocks('accounts', a.id)}${foot(a)}` };
@@ -314,6 +323,7 @@ const SHEETS = {
       <div class="acts" style="align-items:center">${stageSel('opps', o, OPP_STAGES)}<span class="badge teal">${esc(OPP_KINDS[o.kind] || '')}</span></div>
       <div class="acts">${contactBtns(o.phone, acc && acc.email)}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} Teklif</button></div>
       <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Tahmini tutar', o.value ? money(o.value, o.currency) : ''], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
+      ${A._filesCard ? A._filesCard('opps', o.id) : ''}
       ${relBlocks('opps', o.id)}${foot(o)}` };
   },
   weddings: (w) => {
@@ -330,6 +340,7 @@ const SHEETS = {
         <tr><td><b>Toplam</b></td><td class="n"><b>${money(tot, w.currency)}</b></td></tr>
         ${num(w.deposit) ? `<tr><td>İstenen kapora</td><td class="n">${money(num(w.deposit), w.currency)}</td></tr>` : ''}
         ${paid ? `<tr><td>Alınan kapora</td><td class="n">${money(paid, w.currency)}</td></tr><tr><td>Kalan</td><td class="n"><b>${money(Math.max(0, tot - paid), w.currency)}</b></td></tr>` : ''}</table></div>
+      ${A._filesCard ? A._filesCard('weddings', w.id) : ''}
       ${relBlocks('weddings', w.id)}${foot(w)}` };
   },
 };

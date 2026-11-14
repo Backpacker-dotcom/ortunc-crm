@@ -7,6 +7,8 @@ import { renderShell, renderView, renderBody, refresh, renderSheet, guestStats }
 import { handleImportFile } from './io.js';
 import './print.js';
 import './offer.js';
+import { handleAttach, filesCard } from './files.js';
+A._filesCard = filesCard;
 import RULES from '../firestore.rules';
 
 const BAKED_CONFIG = __FB_CONFIG__;
@@ -205,6 +207,7 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('change', (ev) => {
   const el = ev.target;
   if (el.id === 'importFile') return handleImportFile(el);
+  if (el.id === 'attachFile') return handleAttach(el);
   if (el.dataset && el.dataset.change && A[el.dataset.change]) A[el.dataset.change](el, ev);
 });
 document.addEventListener('input', (ev) => { if (ev.target.matches && ev.target.matches('[data-search]')) { S.q = ev.target.value; renderBody(); } });

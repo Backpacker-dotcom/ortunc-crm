@@ -29,6 +29,8 @@ export const ROLES = { yonetici: 'Yönetici', satis: 'Satış', onburo: 'Ön bü
 export const CURS = [['TRY', '₺ TL'], ['EUR', '€ Euro'], ['USD', '$ Dolar'], ['GBP', '£ Sterlin']];
 export const CUR_SYM = { TRY: '₺', EUR: '€', USD: '$', GBP: '£' };
 export const COL_LABEL = { accounts: 'Acente / Firma', guests: 'Misafir', opps: 'Grup & Etkinlik', weddings: 'Düğün' };
+export const EINV = { efatura: 'e-Fatura mükellefi', earsiv: 'e-Arşiv (mükellef değil)', yurtdisi: 'Yurt dışı firma' };
+export const fmtSize = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
 export const STAGE_BADGE = { talep: '', teklif: 'gold', gorusme: 'gold', gezi: 'gold', opsiyon: 'terra', kazanildi: 'olive', sozlesme: 'olive', kaybedildi: 'red' };
 export const DEFAULT_SETTINGS = {
   hotelName: 'Ortunç Otel',
@@ -41,7 +43,7 @@ export const DEFAULT_SETTINGS = {
 /* ---------- durum ---------- */
 export const S = {
   store: null, gate: 'loading', gateInfo: {}, user: null, view: 'pano', q: '', f: {},
-  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], users: [] },
+  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], users: [] },
   settings: { ...DEFAULT_SETTINGS }, sheet: null, calMonth: null, repYear: new Date().getFullYear(),
 };
 export const A = {}; // eylemler (data-act)
@@ -139,6 +141,7 @@ function subRowHtml(f, row = {}) {
   return `<div class="subrow" style="--n:${f.sub.length}">${f.sub.map((s) => inputHtml(s, row[s.k], `data-sub="${s.k}" class="inp" aria-label="${esc(s.ph || s.k)}"`)).join('')}<button type="button" class="x" data-act="rowDel" title="Satırı sil">${ic('x')}</button></div>`;
 }
 function fieldHtml(f, data) {
+  if (f.type === 'section') return `<div class="fld fsec"><h4>${esc(f.label)}</h4>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
   if (f.type === 'rows') {
     const rows = data[f.k] || [];
     return `<div class="fld"><label>${esc(f.label)}</label><div class="rows" data-rows="${f.k}">${rows.map((r) => subRowHtml(f, r)).join('')}</div>
@@ -161,6 +164,7 @@ export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel
     ev.preventDefault();
     const out = {};
     for (const f of fields) {
+      if (f.type === 'section') continue;
       if (f.type === 'rows') {
         out[f.k] = $$(`[data-rows="${f.k}"] .subrow`, frm).map((row) => {
           const o = {}; f.sub.forEach((s) => { const el = $(`[data-sub="${s.k}"]`, row); o[s.k] = s.type === 'number' ? num(el.value) : el.value.trim(); }); return o;

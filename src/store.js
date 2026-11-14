@@ -9,7 +9,7 @@ import {
   collection, doc, onSnapshot, setDoc, deleteDoc, getDoc, writeBatch,
 } from 'firebase/firestore';
 
-export const COLS = ['accounts', 'guests', 'opps', 'weddings', 'activities', 'tasks'];
+export const COLS = ['accounts', 'guests', 'opps', 'weddings', 'activities', 'tasks', 'files'];
 
 export function newId() {
   const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -29,7 +29,8 @@ export function localStore() {
   let mem = {};
   try { mem = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { mem = {}; }
   const subs = {};
-  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* bellekte devam */ } };
+  let persistErr = false;
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); persistErr = false; } catch (e) { persistErr = true; } };
   const emit = (col) => (subs[col] || []).forEach((cb) => cb(Object.values(mem[col] || {})));
   const user = { uid: 'local', name: 'Demo Yönetici', email: '', role: 'yonetici', active: true };
   return {
@@ -43,7 +44,8 @@ export function localStore() {
     async save(col, obj) {
       if (!obj.id) obj.id = newId();
       (mem[col] = mem[col] || {})[obj.id] = clean(obj);
-      persist(); emit(col); return obj.id;
+      persist(); if (persistErr) { delete mem[col][obj.id]; throw new Error('Demo modunda bu cihazda yer kalmadı.'); }
+      emit(col); return obj.id;
     },
     async saveMany(col, arr) {
       mem[col] = mem[col] || {};
@@ -51,6 +53,7 @@ export function localStore() {
       persist(); emit(col);
     },
     async remove(col, id) { if (mem[col]) delete mem[col][id]; persist(); emit(col); },
+    async get(col, id) { const d = mem[col] && mem[col][id]; return d ? JSON.parse(JSON.stringify(d)) : null; },
     async wipe() { mem = {}; persist(); Object.keys(subs).forEach(emit); },
     async signOut() {},
   };
@@ -122,6 +125,7 @@ export function firebaseStore(config) {
       }
     },
     async remove(col, id) { await deleteDoc(doc(db, col, id)); },
+    async get(col, id) { const sn = await getDoc(doc(db, col, id)); return sn.exists() ? { ...sn.data(), id: sn.id } : null; },
     async signIn(email, pass) { await signInWithEmailAndPassword(auth, email, pass); },
     async signOut() { stopAll(); await signOut(auth); },
     async resetPassword(email) { await sendPasswordResetEmail(auth, email); },

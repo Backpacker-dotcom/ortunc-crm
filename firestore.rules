@@ -60,6 +60,19 @@ service cloud.firestore {
       allow create: if canDesk() && request.resource.data.userId == uid();
       allow update, delete: if isAdmin() || (canDesk() && resource.data.userId == uid());
     }
+    // Belgeler: üst bilgi + 1 MB'lık parçalar
+    match /files/{id} {
+      allow read: if signed();
+      allow create: if canSales() && request.resource.data.uploadedBy == uid();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (canSales() && resource.data.uploadedBy == uid());
+    }
+    match /fileChunks/{id} {
+      allow read: if signed();
+      allow create: if canSales() && request.resource.data.uploadedBy == uid();
+      allow update: if false;
+      allow delete: if isAdmin() || (canSales() && resource.data.uploadedBy == uid());
+    }
     match /tasks/{id} {
       allow read: if signed();
       allow create, update: if canDesk();

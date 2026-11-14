@@ -1,5 +1,5 @@
 import {
-  S, A, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, CURS, opts, openForm, today, stamp, can, toast,
+  S, A, EINV, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, CURS, opts, openForm, today, stamp, can, toast,
   byId, sortBy, recTitle, COL_LABEL, addDays, userName,
 } from './core.js';
 
@@ -37,9 +37,20 @@ export function accountForm(rec) {
       { k: 'contractNote', label: 'Kontrat / fiyat notu', half: true, ph: 'ör. 2027 kontratı imzalandı' },
       { k: 'contractStart', label: 'Kontrat başlangıç', type: 'date', half: true },
       { k: 'contractEnd', label: 'Kontrat bitiş', type: 'date', half: true },
+      { type: 'section', label: 'Fatura bilgileri', hint: 'Kontrat dosyasını kaydettikten sonra kartın içindeki "Belgeler" bölümünden yükleyebilirsiniz.' },
+      { k: 'invTitle', label: 'Ticari ünvan', ph: 'ör. Ets Tur Turizm Seyahat A.Ş.' },
+      { k: 'taxOffice', label: 'Vergi dairesi', half: true },
+      { k: 'taxNo', label: 'Vergi no / TC kimlik no', half: true, type: 'tel' },
+      { k: 'invAddress', label: 'Fatura adresi', type: 'textarea' },
+      { k: 'invEmail', label: 'Fatura e-postası', type: 'email', half: true },
+      { k: 'eInvoice', label: 'e-Fatura durumu', type: 'select', opts: Object.entries(EINV), half: true },
+      { k: 'paymentTerms', label: 'Ödeme koşulu / vade', half: true, ph: 'ör. 30 gün, ön ödeme' },
+      { k: 'mersis', label: 'MERSİS no', half: true },
+      { k: 'iban', label: 'IBAN', ph: 'TR..' },
+      { type: 'section', label: 'Diğer' },
       { k: 'notes', label: 'Notlar', type: 'textarea' },
     ],
-    onSave: async (v) => { const id = await save('accounts', v, rec); if (!rec) A.open({ dataset: { col: 'accounts', id } }); },
+    onSave: async (v) => { if (v.taxNo && !/^\d{10,11}$/.test(v.taxNo.replace(/\s/g, ''))) { const e = new Error(); e.userMsg = 'Vergi no 10, TC kimlik no 11 haneli olmalı.'; throw e; } v.taxNo = (v.taxNo || '').replace(/\s/g, ''); v.iban = (v.iban || '').replace(/\s/g, '').toUpperCase(); const id = await save('accounts', v, rec); if (!rec) A.open({ dataset: { col: 'accounts', id } }); },
     onDelete: delFn('accounts', rec),
   });
 }

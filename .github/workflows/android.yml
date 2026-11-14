@@ -185,11 +185,16 @@ jobs:
                           if (fileCb != null) fileCb.onReceiveValue(null);
                           fileCb = cb;
                           try {
+                              String acc = android.text.TextUtils.join(",", p.getAcceptTypes()).toLowerCase();
                               Intent i = new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
-                              i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
-                                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel",
-                                      "text/csv", "text/comma-separated-values", "application/octet-stream"});
-                              startActivityForResult(Intent.createChooser(i, "Excel dosyası seç"), REQ_FILE);
+                              String title = "Dosya seç";
+                              if (acc.contains("spreadsheet") && !acc.contains("pdf")) {
+                                  i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel",
+                                          "text/csv", "text/comma-separated-values", "application/octet-stream"});
+                                  title = "Excel dosyası seç";
+                              }
+                              startActivityForResult(Intent.createChooser(i, title), REQ_FILE);
                           } catch (Exception e) {
                               fileCb = null;
                               toast("Dosya seçici açılamadı");
