@@ -241,3 +241,5 @@ pre.code{background:#1D2A2A;color:#DCE9E6;border-radius:10px;padding:12px;font-s
 
 .subrow .sc{display:flex;flex-direction:column;gap:2px;min-width:0}.subrow .sc>span{display:none;font-size:11px;color:var(--muted);font-weight:600}
 @media (max-width:900px){.subrow.items{grid-template-columns:1fr 1fr;position:relative;padding-right:38px}.subrow.items > :first-child{grid-column:1/3}.subrow.items .sc>span{display:block}.subrow.items > .x{position:absolute;top:4px;right:2px}}
+.chip svg.ic{width:14px;height:14px;vertical-align:-2px;margin-right:2px}
+.subrow.presets,.subhead.presets{grid-template-columns:2.2fr 1.4fr 1fr .9fr .8fr 1fr 1.1fr 34px}@media (max-width:900px){.subrow.presets{grid-template-columns:1fr 1fr;position:relative;padding-right:38px}.subrow.presets > :first-child{grid-column:1/3}.subrow.presets .sc>span{display:block}.subrow.presets > .x{position:absolute;top:4px;right:2px}}

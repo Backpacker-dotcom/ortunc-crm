@@ -55,6 +55,8 @@ export const TAGS = {
     ['oda', 'Oda sayısı', (o) => (num(o.rooms) ? fmtNum(o.rooms) : '')],
     ['tutar', 'Genel toplam (vergiler dahil)', (o) => { const t = recTotals('opps', o); return Object.keys(t).length ? moneyMap(t) : ''; }],
     ['vergi_notu', 'Vergi notu (KDV dahil / eklenir)', (o) => taxNoteText('opps', o)],
+    ['kapora', 'İstenen ön ödeme', (o) => (num(o.deposit) ? money(num(o.deposit), o.currency) : '')],
+    ['program', 'Program / menü notu', (o) => o.program || ''],
     ['geçerlilik', 'Teklif geçerlilik tarihi', (o) => fmtDate(o.validUntil)],
     ['sorumlu', 'Sorumlu kişi', (o) => userName(o.ownerId) || (S.user && S.user.name)],
     ...common(),
@@ -81,6 +83,8 @@ Saygılarımızla,
 
 {firma} adına iletmiş olduğunuz talep için teşekkür ederiz. {giriş} – {çıkış} tarihleri arasında ({gece} gece) {kişi} kişi ve {oda} oda için {tesis} teklifimiz aşağıdadır.
 
+{program}
+
 {fiyat_tablosu}
 
 {vergi_notu} Bu teklif {geçerlilik} tarihine kadar geçerlidir. Opsiyon ve ödeme koşulları için bizimle iletişime geçebilirsiniz.
@@ -102,7 +106,7 @@ export function fill(col, rec, text = template(col)) {
     if (key === 'fiyat_tablosu') return TABLE_TAG;
     if (!map[key]) return m;
     const v = String(map[key](rec) ?? '').trim();
-    if (!v) { if (['vergi_notu', 'indirim', 'ek_hizmetler'].includes(key)) return ''; missing.add(key); return GAP; }
+    if (!v) { if (['vergi_notu', 'indirim', 'ek_hizmetler', 'program'].includes(key)) return ''; missing.add(key); return GAP; }
     return v;
   });
   return { text: out, missing: Array.from(missing) };

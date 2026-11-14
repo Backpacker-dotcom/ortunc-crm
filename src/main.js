@@ -1,6 +1,6 @@
 import {
   S, A, V, $, $$, esc, ic, ROLES, OPP_STAGES, OPP_KINDS, WED_STAGES, ACT_TYPES, ACC_TYPES, DEFAULT_SETTINGS, MON3, today, fmtDate, money, moneyMap, sumByCur,
-  num, fmtNum, sortBy, wedTotal, taxCfg, KDV_OPTS, MODE_OPTS, lastContact, can, toast, errText, openForm, closeModal, infoModal, confirmBox, copyText, stamp, userName, fmtTs,
+  num, fmtNum, sortBy, wedTotal, taxCfg, KDV_OPTS, MODE_OPTS, QTY_RULES, CURS, kvOpts, presetsOf, lastContact, can, toast, errText, openForm, closeModal, infoModal, confirmBox, copyText, stamp, userName, fmtTs,
 } from './core.js';
 import { localStore, firebaseStore, authMessage, COLS } from './store.js';
 import { renderShell, renderView, renderBody, refresh, renderSheet, guestStats } from './views.js';
@@ -104,6 +104,22 @@ A.editUser = (el) => {
   });
 };
 A.resetUserPass = async (el) => { const u = S.data.users.find((x) => x.id === el.dataset.id); try { await S.store.resetPassword(u.email); toast('Şifre sıfırlama e-postası gönderildi: ' + u.email); } catch (e) { toast(authMessage(e)); } };
+A.presetEdit = (el) => {
+  const col = el.dataset.col; const adm = can.admin();
+  openForm({
+    title: col === 'opps' ? 'Grup & etkinlik · hazır kalemler' : 'Düğün · hazır kalemler', wide: true, saveLabel: adm ? 'Kaydet' : 'Kapat',
+    intro: `<p class="muted" style="margin-top:0">Ad boş bırakılan kalem "Özel kalem" düğmesi olur; adı formda yazılır. Fiyat boşsa formda girilir.${adm ? '' : ' Bu listeyi yalnızca yönetici değiştirebilir.'}</p>`,
+    data: { list: presetsOf(col).map((p) => ({ ...p, kdv: String(p.kdv), kv: String(p.kv), mode: p.mode || '' })) },
+    fields: [{ k: 'list', label: 'Kalemler', type: 'rows', cls: 'presets', keepEmpty: true, addLabel: 'Kalem ekle', heads: ['Kalem adı', 'Miktar nasıl hesaplansın', 'Varsayılan fiyat', 'Para birimi', 'KDV', 'Konaklama vergisi', 'Vergiler'],
+      sub: [{ k: 'name', ph: 'Kalem adı (boş = Özel kalem)' }, { k: 'rule', type: 'select', opts: QTY_RULES, req: true, def: 'adet' }, { k: 'price', type: 'number', ph: 'Fiyat' }, { k: 'cur', type: 'select', opts: CURS, req: true, def: 'TRY' },
+        { k: 'kdv', type: 'select', opts: KDV_OPTS, req: true, def: String(taxCfg().kdv) }, { k: 'kv', type: 'select', opts: kvOpts(), req: true, def: '0' }, { k: 'mode', type: 'select', opts: [['', 'Ayara göre'], ...MODE_OPTS], req: true, def: '' }] }],
+    onSave: async (v) => {
+      if (!adm) return;
+      const list = (v.list || []).map((p, i) => ({ id: 'p' + i, name: p.name, rule: p.rule || 'adet', price: p.price === '' ? '' : num(p.price), cur: p.cur || 'TRY', kdv: num(p.kdv), kv: num(p.kv), mode: p.mode || '' }));
+      const { id, ...rest } = S.settings; await S.store.save('settings', { ...rest, id: 'main', presets: { ...(S.settings.presets || {}), [col]: list } }); toast('Hazır kalemler kaydedildi');
+    },
+  });
+};
 A.copyRules = () => copyText(RULES);
 A.showRules = () => infoModal('Firestore güvenlik kuralları', `<p class="muted" style="margin-top:0">Firebase konsolu › Firestore Database › Rules sekmesine yapıştırıp <b>Publish</b>'e basın.</p><pre class="code">${esc(RULES)}</pre>`, `<button class="btn pri" data-act="copyRules">${ic('copy')} Kuralları kopyala</button>`);
 A.copyCfgCode = () => copyText(btoa(unescape(encodeURIComponent(LS.get(K_CFG) || JSON.stringify(BAKED_CONFIG)))));
@@ -125,6 +141,8 @@ V.settings = {
       <div class="card pad" style="grid-column:1/-1"><h3>Teklif metinleri</h3><p class="muted" style="margin-top:0">Tekliflerin ana metni. İçindeki <code>{çift}</code>, <code>{tarih}</code>, <code>{toplam}</code> gibi etiketler her teklifte kayıttaki bilgiyle dolar; teklif Word, PDF, WhatsApp ya da e-posta olarak gönderilmeye hazır olur.</p>
         <div class="acts"><button class="btn ${adm ? 'pri' : ''}" data-act="tplOpen" data-col="weddings">${ic('heart')} Düğün teklifi metni</button><button class="btn" data-act="tplOpen" data-col="opps">${ic('handshake')} Grup & etkinlik teklifi metni</button></div>
         <p class="muted" style="font-size:12.5px;margin:10px 0 0">${S.settings.templates && S.settings.templates.weddings ? 'Düğün teklifi için kendi metniniz kullanılıyor.' : 'Şu an örnek metin kullanılıyor; kendi metninizi yapıştırın.'}</p></div>
+      <div class="card pad" style="grid-column:1/-1"><h3>Hazır teklif kalemleri</h3><p class="muted" style="margin-top:0">Teklif formundaki hazır kalem düğmeleri (Konaklama, Coffee break, Öğle yemeği, Akşam yemeği, salon kullanımı…). Adını, varsayılan fiyatını, vergisini ve miktarın nasıl hesaplanacağını buradan belirleyin; yeni kalem ekleyin.</p>
+        <div class="acts"><button class="btn" data-act="presetEdit" data-col="opps">${ic('handshake')} Grup & etkinlik kalemleri</button><button class="btn" data-act="presetEdit" data-col="weddings">${ic('heart')} Düğün kalemleri</button></div></div>
       ${cardsSettingsCard()}
       ${mailSettingsCard()}
       ${fb ? `<div class="card" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Kullanıcılar</h3>${adm ? `<button class="btn sm pri" data-act="newUser">${ic('plus')} Kullanıcı</button>` : ''}</div>

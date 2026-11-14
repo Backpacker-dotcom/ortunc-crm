@@ -1,5 +1,5 @@
 import {
-  itemsOf, num,
+  itemsOf, num, presetsOf,
   S, A, EINV, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, CURS, opts, openForm, today, stamp, can, toast,
   byId, sortBy, recTitle, COL_LABEL, addDays, userName, taxCfg, KDV_OPTS, kvOpts, MODE_OPTS, calcItems, money, esc,
 } from './core.js';
@@ -20,10 +20,10 @@ const delFn = (col, rec) => (rec && can.del(col, rec) ? async () => { await S.st
 
 
 /* ---------- fiyat kalemleri (para birimi + KDV + konaklama vergisi) ---------- */
-export function itemsField(label, hint) {
+export function itemsField(label, hint, col) {
   const t = taxCfg();
   return {
-    k: 'items', label, type: 'rows', cls: 'items', addLabel: 'Kalem ekle', hint,
+    k: 'items', label, type: 'rows', cls: 'items', addLabel: 'Kalem ekle', hint, presets: col ? presetsOf(col) : null,
     heads: ['Kalem', 'Miktar', 'Birim fiyat', 'Para birimi', 'KDV', 'Konaklama vergisi', 'Vergiler'],
     sub: [
       { k: 'name', ph: 'Kalem' }, { k: 'qty', ph: 'Miktar', type: 'number' }, { k: 'price', ph: 'Birim fiyat', type: 'number', neg: true },
@@ -116,7 +116,7 @@ export function oppForm(rec, preset = {}) {
     title: rec ? 'Talebi düzenle' : 'Yeni grup / etkinlik talebi',
     wide: true,
     data: rec ? { ...rec, items: itemsOf('opps', rec) } : { kind: 'grup', stage: 'talep', currency: 'TRY', ownerId: S.user.uid, property: S.settings.properties[0], validUntil: addDays(today(), 10),
-      items: [{ name: 'Konaklama (oda × gece)', qty: '', price: '', cur: 'TRY', kdv: String(taxCfg().kdv), kv: String(taxCfg().kv), mode: taxCfg().mode }], ...preset },
+      items: [], ...preset },
     fields: [
       { k: 'title', label: 'Başlık', req: true, ph: 'ör. X Firması bayi toplantısı' },
       { k: 'kind', label: 'Tür', type: 'select', opts: opts(OPP_KINDS), req: true, half: true },
@@ -129,7 +129,10 @@ export function oppForm(rec, preset = {}) {
       { k: 'end', label: 'Bitiş', type: 'date', half: true },
       { k: 'pax', label: 'Kişi sayısı', type: 'number', half: true },
       { k: 'rooms', label: 'Oda sayısı', type: 'number', half: true },
-      itemsField('Fiyat kalemleri', 'Konaklama, toplantı salonu, yemek gibi kalemleri ayrı girin; her kalemde para birimi ve vergiler (dahil / eklenecek) seçilir. Konaklama vergisi yalnızca konaklama kalemlerine uygulanır.'),
+      { k: 'program', label: 'Program / menü notu', type: 'textarea', ph: 'ör. 09:00 kayıt, 10:30 coffee break, 12:30 öğle yemeği (açık büfe)…' },
+      itemsField('Fiyat kalemleri', 'Önce tarihleri, kişi ve oda sayısını girin; sonra hazır kalemlere dokunun, miktar kendiliğinden hesaplanır (konaklama = oda × gece, yemek = kişi × gün). Özel kalem ile istediğiniz kalemi ekleyin.', 'opps'),
+      { k: 'deposit', label: 'İstenen kapora / ön ödeme', type: 'number', half: true },
+      { k: 'depositPaid', label: 'Alınan kapora', type: 'number', half: true },
       { k: 'source', label: 'Kaynak', type: 'select', opts: listOpts(S.settings.sources), half: true },
       { k: 'ownerId', label: 'Sorumlu', type: 'select', opts: userOpts(), half: true },
       { k: 'validUntil', label: 'Teklif geçerlilik', type: 'date', half: true },
@@ -153,7 +156,7 @@ export function weddingForm(rec) {
     title: rec ? 'Düğün teklifini düzenle' : 'Yeni düğün teklifi',
     wide: true,
     data: rec ? { ...rec, items: itemsOf('weddings', rec) } : { stage: 'talep', currency: 'TRY', ownerId: S.user.uid, venue: S.settings.properties[0], validUntil: addDays(today(), 15),
-      items: [{ name: 'Menü (kişi başı)', qty: '', price: '', cur: 'TRY', kdv: String(taxCfg().kdv), kv: '0', mode: taxCfg().mode }] },
+      items: [] },
     fields: [
       { k: 'couple', label: 'Çift', req: true, ph: 'ör. Elif & Mert' },
       { k: 'phone', label: 'Telefon', type: 'tel', half: true },
@@ -164,7 +167,7 @@ export function weddingForm(rec) {
       { k: 'stage', label: 'Aşama', type: 'select', opts: WED_STAGES, req: true, half: true },
       { k: 'guests', label: 'Davetli sayısı', type: 'number', half: true },
       { k: 'menu', label: 'Menü / paket', half: true, ph: 'ör. Ege menüsü, yerli içecek paketi' },
-      itemsField('Fiyat kalemleri', 'Her kalemde para birimini, KDV ve konaklama vergisini, vergilerin fiyata dahil mi yoksa üstüne mi ekleneceğini seçin. Miktar boşsa davetli sayısı kullanılır. İndirim için eksi fiyat girin.'),
+      itemsField('Fiyat kalemleri', 'Aşağıdaki hazır kalemlere dokunarak ekleyin; miktar davetli / oda / gece sayısından hesaplanır. Her kalemde para birimi, KDV, konaklama vergisi ve vergilerin dahil mi eklenecek mi olduğu seçilir. İndirim için eksi fiyat girin.', 'weddings'),
       { k: 'deposit', label: 'İstenen kapora', type: 'number', half: true },
       { k: 'depositPaid', label: 'Alınan kapora', type: 'number', half: true },
       { k: 'validUntil', label: 'Teklif geçerlilik', type: 'date', half: true },

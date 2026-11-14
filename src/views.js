@@ -327,7 +327,8 @@ const SHEETS = {
       <div class="acts" style="align-items:center">${stageSel('opps', o, OPP_STAGES)}<span class="badge teal">${esc(OPP_KINDS[o.kind] || '')}</span></div>
       <div class="acts">${contactBtns(o.phone, acc && acc.email)}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} Teklif</button></div>
       <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
-      <div class="card pad"><h3>Fiyat</h3>${priceTable('opps', o)}</div>
+      ${o.program ? `<div class="card pad"><h3>Program / menü</h3><div style="white-space:pre-wrap">${esc(o.program)}</div></div>` : ''}
+      <div class="card pad"><h3>Fiyat</h3>${priceTable('opps', o)}${num(o.deposit) || num(o.depositPaid) ? `<table class="tb" style="margin-top:8px">${num(o.deposit) ? `<tr><td>İstenen ön ödeme</td><td class="n">${money(num(o.deposit), o.currency)}</td></tr>` : ''}${num(o.depositPaid) ? `<tr><td>Alınan</td><td class="n">${money(num(o.depositPaid), o.currency)}</td></tr><tr><td><b>Kalan</b></td><td class="n"><b>${money(Math.max(0, num(o.value) - num(o.depositPaid)), o.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
       ${A._filesCard ? A._filesCard('opps', o.id) : ''}
       ${relBlocks('opps', o.id)}${foot(o)}` };
   },

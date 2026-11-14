@@ -107,6 +107,22 @@ export const taxCfg = () => ({ kdv: 10, kv: 2, mode: 'dahil', ...(S.settings.tax
 export const KDV_OPTS = [['0', 'Yok'], ['1', '%1'], ['10', '%10'], ['20', '%20']];
 export const kvOpts = () => [['0', 'Yok'], [String(taxCfg().kv), `%${taxCfg().kv}`]];
 export const MODE_OPTS = [['dahil', 'Dahil'], ['ekle', 'Eklenecek']];
+export const QTY_RULES = [['kisi_gun', 'Kişi × gün'], ['kisi_gece', 'Kişi × gece'], ['kisi', 'Kişi sayısı'], ['oda_gece', 'Oda × gece'], ['gun', 'Gün sayısı'], ['gece', 'Gece sayısı'], ['adet', '1 adet']];
+const P = (id, name, rule, kdv, kv = 0, price = '') => ({ id, name, rule, kdv, kv, price, cur: 'TRY', mode: '' });
+export const DEFAULT_PRESETS = {
+  opps: [P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 2), P('coffee', 'Coffee break (kişi başı)', 'kisi_gun', 10), P('ogle', 'Öğle yemeği (kişi başı)', 'kisi_gun', 10),
+    P('aksam', 'Akşam yemeği (kişi başı)', 'kisi_gece', 10), P('salonyarim', 'Toplantı salonu · yarım gün', 'gun', 20), P('salontam', 'Toplantı salonu · tam gün', 'gun', 20), P('ozel', '', 'adet', 20)],
+  weddings: [P('menu', 'Menü (kişi başı)', 'kisi', 10), P('icecek', 'İçecek paketi (kişi başı)', 'kisi', 20), P('susleme', 'Süsleme ve çiçek', 'adet', 20), P('muzik', 'Müzik / DJ', 'adet', 20),
+    P('pasta', 'Düğün pastası', 'adet', 10), P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 2), P('ozel', '', 'adet', 20)],
+};
+export const presetsOf = (col) => ((S.settings.presets && S.settings.presets[col]) || DEFAULT_PRESETS[col]);
+export const presetLabel = (p) => p.name || 'Özel kalem';
+const dayDiff = (a, b) => (a && b ? Math.max(0, Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5)) : 0);
+export function ruleQty(rule, get) {
+  const pax = num(get('pax') || get('guests')), rooms = num(get('rooms')), n = dayDiff(get('start') || get('date'), get('end') || get('date'));
+  const days = n + 1, nights = Math.max(1, n);
+  return ({ kisi_gun: pax * days, kisi_gece: pax * nights, kisi: pax, oda_gece: rooms * nights, gun: days, gece: nights, adet: 1 })[rule] || '';
+}
 export function itemsOf(col, r) {
   if (Array.isArray(r.items) && r.items.length) return r.items;
   const c = r.currency || 'TRY';
@@ -160,7 +176,7 @@ export function priceRows(col, r) {
     const tt = [`Genel toplam${anyTax ? ' (vergiler dahil)' : ''}${suf}`, money(t.gross, k)]; totals.push(tt); foot.push([...tt, 't']);
   });
   const after = [];
-  if (col === 'weddings' && num(r.deposit)) after.push(['Rezervasyon için kapora', money(num(r.deposit), r.currency || c.main)]);
+  if (num(r.deposit)) after.push([col === 'weddings' ? 'Rezervasyon için kapora' : 'Opsiyon için ön ödeme', money(num(r.deposit), r.currency || c.main)]);
   return { rows, sums, totals, foot, after, total: totals[0] || ['Toplam', money(0)] };
 }
 export const taxNoteText = (col, r) => {
@@ -234,14 +250,14 @@ function fieldHtml(f, data) {
   if (f.type === 'rows') {
     const rows = data[f.k] || [];
     return `<div class="fld"><label>${esc(f.label)}</label>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}${f.heads ? `<div class="subhead ${f.cls || ''}" style="--n:${f.sub.length}">${f.heads.map((h) => `<span>${esc(h)}</span>`).join('')}<span></span></div>` : ''}<div class="rows" data-rows="${f.k}">${rows.map((r) => subRowHtml(f, r)).join('')}</div>
-      <div><button type="button" class="btn sm" data-act="rowAdd" data-k="${f.k}">${ic('plus')} ${esc(f.addLabel || 'Satır ekle')}</button></div>${f.summary ? `<div class="rowsum" data-sum="${f.k}"></div>` : ''}</div>`;
+      <div class="acts">${(f.presets || []).map((p, i) => `<button type="button" class="chip" data-act="itemPreset" data-k="${f.k}" data-i="${i}">${ic('plus')} ${esc(presetLabel(p))}</button>`).join('')}${f.presets ? '' : `<button type="button" class="btn sm" data-act="rowAdd" data-k="${f.k}">${ic('plus')} ${esc(f.addLabel || 'Satır ekle')}</button>`}</div>${f.summary ? `<div class="rowsum" data-sum="${f.k}"></div>` : ''}</div>`;
   }
   return `<div class="fld ${f.half ? 'half' : ''}"><label for="f_${f.k}">${esc(f.label)}${f.req ? ' *' : ''}</label>${inputHtml(f, data[f.k], `id="f_${f.k}" name="${f.k}"`)}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
 }
 function readRows(frm, f) {
   return $$(`[data-rows="${f.k}"] .subrow`, frm).map((row) => {
     const o = {}; f.sub.forEach((s) => { const el = $(`[data-sub="${s.k}"]`, row); o[s.k] = s.type === 'number' ? (el.value === '' ? '' : num(el.value)) : el.value.trim(); }); return o;
-  }).filter((o) => f.sub.some((s) => s.type !== 'select' && o[s.k] !== '' && o[s.k] != null));
+  }).filter((o) => f.keepEmpty || f.sub.some((s) => s.type !== 'select' && o[s.k] !== '' && o[s.k] != null));
 }
 let formCtx = null;
 export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel = 'Kaydet', intro = '', wide = false }) {
@@ -278,8 +294,21 @@ export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel
 }
 export function closeModal() { $('#modal').innerHTML = ''; formCtx = null; }
 A.closeModal = closeModal;
+export function addRowWith(k, row) {
+  const f = formCtx && formCtx.fields.find((x) => x.k === k); if (!f) return;
+  $(`[data-rows="${k}"]`).insertAdjacentHTML('beforeend', subRowHtml(f, row));
+  const rows = $$(`[data-rows="${k}"] .subrow`); const last = rows[rows.length - 1];
+  const target = row.name ? $('[data-sub=price]', last) : $('[data-sub=name]', last); if (target) target.focus();
+  $('#frm').dispatchEvent(new Event('input'));
+}
 A.rowAdd = (el) => { const f = formCtx.fields.find((x) => x.k === el.dataset.k); $(`[data-rows="${f.k}"]`).insertAdjacentHTML('beforeend', subRowHtml(f)); const rows = $$(`[data-rows="${f.k}"] .subrow`); $('input,select', rows[rows.length - 1]).focus(); };
 A.rowDel = (el) => el.closest('.subrow').remove();
+A.itemPreset = (el) => {
+  const f = formCtx.fields.find((x) => x.k === el.dataset.k); const p = f.presets[Number(el.dataset.i)]; const frm = $('#frm');
+  const get = (k) => (frm.elements[k] ? frm.elements[k].value : '');
+  const t = taxCfg(); const q = ruleQty(p.rule, get);
+  addRowWith(f.k, { name: p.name, qty: q === '' || q === 0 ? '' : q, price: p.price === '' || p.price == null ? '' : p.price, cur: p.cur || 'TRY', kdv: String(p.kdv ?? t.kdv), kv: String(p.kv ?? 0), mode: p.mode || t.mode });
+};
 
 export function infoModal(title, html, footer = '') {
   $('#modal').innerHTML = `<div class="ov center"><div class="modal"><div class="mh"><h2>${esc(title)}</h2><button class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div><div class="mb">${html}</div>${footer ? `<div class="mf">${footer}</div>` : ''}</div></div>`;
