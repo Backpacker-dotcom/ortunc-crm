@@ -5,6 +5,8 @@ import {
 import { localStore, firebaseStore, authMessage, COLS } from './store.js';
 import { renderShell, renderView, renderBody, refresh, renderSheet, guestStats } from './views.js';
 import { handleImportFile } from './io.js';
+import './print.js';
+import './offer.js';
 import RULES from '../firestore.rules';
 
 const BAKED_CONFIG = __FB_CONFIG__;
@@ -20,7 +22,7 @@ V.reports = {
   head: () => {
     const ys = new Set([new Date().getFullYear()]);
     S.data.opps.forEach((o) => o.start && ys.add(Number(o.start.slice(0, 4)))); S.data.weddings.forEach((w) => w.date && ys.add(Number(w.date.slice(0, 4))));
-    return `<select class="inp" style="width:auto" data-change="repYear" aria-label="Yıl">${Array.from(ys).sort().map((y) => `<option ${y === S.repYear ? 'selected' : ''}>${y}</option>`).join('')}</select><button class="btn" data-act="exportAll">${ic('download')} Tüm veriler (Excel)</button>`;
+    return `<button class="btn" data-act="printPage" data-title="Raporlar · ${S.repYear}" title="Yazdır / PDF">${ic('printer')}<span class="hide-m"> Yazdır</span></button><select class="inp" style="width:auto" data-change="repYear" aria-label="Yıl">${Array.from(ys).sort().map((y) => `<option ${y === S.repYear ? 'selected' : ''}>${y}</option>`).join('')}</select><button class="btn" data-act="exportAll">${ic('download')} Tüm veriler (Excel)</button>`;
   },
   body: () => {
     const y = String(S.repYear), D = S.data;
@@ -66,9 +68,8 @@ A.editSettings = () => openForm({
     { k: 'hotelName', label: 'Otel / işletme adı', req: true }, { k: 'phone', label: 'Telefon', type: 'tel', half: true }, { k: 'email', label: 'E-posta', type: 'email', half: true }, { k: 'address', label: 'Adres' },
     { k: 'properties', label: 'Tesisler / mekânlar', type: 'textarea', hint: 'Her satıra bir tane. Talep ve düğün formlarındaki listelerde çıkar.' },
     { k: 'sources', label: 'Talep kaynakları', type: 'textarea', hint: 'Her satıra bir tane.' },
-    { k: 'offerNote', label: 'Düğün teklifi alt notu', type: 'textarea' },
   ],
-  onSave: async (v) => { await S.store.save('settings', { id: 'main', ...v, properties: lines(v.properties), sources: lines(v.sources) }); toast('Kaydedildi'); },
+  onSave: async (v) => { await S.store.save('settings', { ...S.settings, ...v, id: 'main', properties: lines(v.properties), sources: lines(v.sources) }); toast('Kaydedildi'); },
 });
 A.newUser = () => openForm({
   title: 'Yeni kullanıcı', saveLabel: 'Kullanıcıyı oluştur',
@@ -107,6 +108,9 @@ V.settings = {
       <div class="card pad"><h3>Excel</h3><p class="muted" style="margin-top:0">Toplu kayıt aktarın ya da tüm veriyi yedek olarak indirin. Aynı adla kayıtlı acenteler atlanır; misafirlerde yeni konaklamalar mevcut kayda eklenir.</p>
         <div class="acts">${can.edit('accounts') ? `<button class="btn" data-act="importPick" data-col="accounts">${ic('upload')} Acente içe aktar</button>` : ''}${can.edit('guests') ? `<button class="btn" data-act="importPick" data-col="guests">${ic('upload')} Misafir içe aktar</button>` : ''}<button class="btn" data-act="exportAll">${ic('download')} Tüm veriyi indir</button></div>
         <div class="acts" style="margin-top:8px"><button class="linkbtn" data-act="template" data-col="accounts">Acente şablonu</button><button class="linkbtn" data-act="template" data-col="guests">Misafir şablonu</button></div></div>
+      <div class="card pad" style="grid-column:1/-1"><h3>Teklif metinleri</h3><p class="muted" style="margin-top:0">Tekliflerin ana metni. İçindeki <code>{çift}</code>, <code>{tarih}</code>, <code>{toplam}</code> gibi etiketler her teklifte kayıttaki bilgiyle dolar; teklif Word, PDF, WhatsApp ya da e-posta olarak gönderilmeye hazır olur.</p>
+        <div class="acts"><button class="btn ${adm ? 'pri' : ''}" data-act="tplOpen" data-col="weddings">${ic('heart')} Düğün teklifi metni</button><button class="btn" data-act="tplOpen" data-col="opps">${ic('handshake')} Grup & etkinlik teklifi metni</button></div>
+        <p class="muted" style="font-size:12.5px;margin:10px 0 0">${S.settings.templates && S.settings.templates.weddings ? 'Düğün teklifi için kendi metniniz kullanılıyor.' : 'Şu an örnek metin kullanılıyor; kendi metninizi yapıştırın.'}</p></div>
       ${fb ? `<div class="card" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Kullanıcılar</h3>${adm ? `<button class="btn sm pri" data-act="newUser">${ic('plus')} Kullanıcı</button>` : ''}</div>
         <div class="list">${sortBy(S.data.users, (u) => u.name || '').map((u) => `<div class="row"><div class="av">${esc((u.name || '?').slice(0, 1).toLocaleUpperCase('tr-TR'))}</div><div class="t"><b>${esc(u.name)}${u.id === S.user.uid ? ' (siz)' : ''}</b><span>${esc(u.email)}</span></div>
           <div class="r"><span class="badge ${u.active === false ? 'red' : 'teal'}">${u.active === false ? 'Kapalı' : esc(ROLES[u.role] || u.role)}</span></div>${adm ? `<div class="acts"><button class="btn sm" data-act="resetUserPass" data-id="${u.id}" title="Şifre sıfırlama e-postası gönder">Şifre</button><button class="btn sm" data-act="editUser" data-id="${u.id}" aria-label="Düzenle">${ic('pencil')}</button></div>` : ''}</div>`).join('')}</div></div>` : ''}

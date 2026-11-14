@@ -93,6 +93,17 @@ A.setStage = async (el) => {
   try { await apply(); } catch (e) { toast(errText(e)); refresh(); }
 };
 
+
+/* ================= süzülmüş listeler (ekran ve çıktı ortak) ================= */
+export const LIST = {
+  accounts: () => sortBy(D().accounts.filter((a) => (!S.f.type || a.type === S.f.type) && (!S.f.status || a.status === S.f.status) && match(S.q, a.name, a.city, a.country, a.market, a.email, ...(a.contacts || []).map((c) => c.name))), (a) => a.name.toLocaleLowerCase('tr-TR')),
+  guests: () => { const sp = new Set(specialDays(30).map((x) => x.g.id)); return sortBy(D().guests.filter((g) => (S.f.g === 'vip' ? isVip(g) : S.f.g === 'repeat' ? (g.stays || []).length > 1 : S.f.g === 'special' ? sp.has(g.id) : true) && match(S.q, g.name, g.phone, g.email, g.city, g.country, (g.tags || []).join(' '))), (g) => g.name.toLocaleLowerCase('tr-TR')); },
+  opps: () => D().opps.filter((o) => (!S.f.kind || o.kind === S.f.kind) && match(S.q, o.title, o.contactName, (byId('accounts', o.accountId) || {}).name)),
+  weddings: () => sortBy(D().weddings.filter((w) => (!S.f.ws || w.stage === S.f.ws) && (!S.f.wy || (w.date || '').startsWith(S.f.wy)) && match(S.q, w.couple, w.phone, w.email)), (w) => w.date || '9999'),
+  tasks: () => { const f = S.f.t || ''; const l = D().tasks.filter((t) => (f === 'done' ? t.done : !t.done) && (f !== 'mine' || t.assigneeId === S.user.uid) && (f !== 'late' || (t.due && t.due < today()))); return f === 'done' ? sortBy(l, (t) => t.doneAt || 0, -1).slice(0, 100) : sortBy(l, (t) => t.due || '9999'); },
+};
+const printBtn = (kind) => `<button class="btn" data-act="printList" data-k="${kind}" title="Yazdır / PDF">${ic('printer')}<span class="hide-m"> Yazdır</span></button>`;
+
 /* ================= PANO ================= */
 function upcomingEvents(days) {
   const t = today(), lim = addDays(t, days);
@@ -124,7 +135,7 @@ const actItem = (a, showRef) => `<div class="it"><div class="dot">${ic(ACT_ICON[
 
 V.pano = {
   title: () => 'Pano',
-  head: () => `${can.edit('activities') ? `<button class="btn" data-act="newActivity">${ic('plus')} Aktivite</button>` : ''}${can.edit('tasks') ? `<button class="btn" data-act="newTask">${ic('plus')} Görev</button>` : ''}`,
+  head: () => `<button class="btn" data-act="printPage" data-title="Pano" title="Yazdır / PDF">${ic('printer')}</button>${can.edit('activities') ? `<button class="btn" data-act="newActivity">${ic('plus')} Aktivite</button>` : ''}${can.edit('tasks') ? `<button class="btn" data-act="newTask">${ic('plus')} Görev</button>` : ''}`,
   body: () => {
     const t = today(), y = t.slice(0, 4);
     const oo = openOpps(), od = overdue();
@@ -164,10 +175,10 @@ V.pano = {
 /* ================= ACENTELER ================= */
 V.accounts = {
   title: () => 'Acenteler & Firmalar',
-  head: () => `${searchBox('Ad, şehir, yetkili ara')}<button class="btn" data-act="exportCol" data-col="accounts" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newAccount', 'Yeni', 'accounts')}`,
+  head: () => `${searchBox('Ad, şehir, yetkili ara')}${printBtn('accounts')}<button class="btn" data-act="exportCol" data-col="accounts" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newAccount', 'Yeni', 'accounts')}`,
   chips: () => chip('type', '', 'Tümü', D().accounts.length) + Object.entries(ACC_TYPES).map(([k, l]) => { const n = D().accounts.filter((a) => a.type === k).length; return n ? chip('type', k, l, n) : ''; }).join('') + '<span style="width:8px"></span>' + Object.entries(ACC_STATUS).map(([k, l]) => `<button class="chip ${S.f.status === k ? 'on' : ''}" data-act="filter" data-k="status" data-v="${S.f.status === k ? '' : k}">${l}</button>`).join(''),
   body: () => {
-    const list = sortBy(D().accounts.filter((a) => (!S.f.type || a.type === S.f.type) && (!S.f.status || a.status === S.f.status) && match(S.q, a.name, a.city, a.country, a.market, a.email, ...(a.contacts || []).map((c) => c.name))), (a) => a.name.toLocaleLowerCase('tr-TR'));
+    const list = LIST.accounts();
     if (!D().accounts.length) return empty('Henüz acente ya da firma yok', 'Çalıştığınız acenteleri, tur operatörlerini ve kurumsal firmaları buraya ekleyin.', addBtn('newAccount', 'İlk kaydı ekle', 'accounts'));
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
     return `<div class="card list">${list.map((a) => { const lc = lastContact(a.id); return `<button class="row" data-act="open" data-col="accounts" data-id="${a.id}"><div class="av">${esc(initials(a.name))}</div>
@@ -181,11 +192,10 @@ const guestStats = (g) => { const st = g.stays || []; const nights = st.reduce((
 const isVip = (g) => (g.tags || []).some((t) => t.toLocaleLowerCase('tr-TR') === 'vip');
 V.guests = {
   title: () => 'Misafirler',
-  head: () => `${searchBox('Ad, telefon, şehir ara')}<button class="btn" data-act="exportCol" data-col="guests" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newGuest', 'Yeni', 'guests')}`,
+  head: () => `${searchBox('Ad, telefon, şehir ara')}${printBtn('guests')}<button class="btn" data-act="exportCol" data-col="guests" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newGuest', 'Yeni', 'guests')}`,
   chips: () => chip('g', '', 'Tümü', D().guests.length) + chip('g', 'vip', 'VIP', D().guests.filter(isVip).length) + chip('g', 'repeat', 'Tekrar gelen', D().guests.filter((g) => (g.stays || []).length > 1).length) + chip('g', 'special', 'Özel günü yaklaşan', specialDays(30).length),
   body: () => {
-    const sp = new Set(specialDays(30).map((x) => x.g.id));
-    const list = sortBy(D().guests.filter((g) => (S.f.g === 'vip' ? isVip(g) : S.f.g === 'repeat' ? (g.stays || []).length > 1 : S.f.g === 'special' ? sp.has(g.id) : true) && match(S.q, g.name, g.phone, g.email, g.city, g.country, (g.tags || []).join(' '))), (g) => g.name.toLocaleLowerCase('tr-TR'));
+    const list = LIST.guests();
     if (!D().guests.length) return empty('Henüz misafir kaydı yok', 'Misafirlerinizi tercihleri, özel günleri ve konaklama geçmişiyle birlikte kaydedin.', addBtn('newGuest', 'İlk misafiri ekle', 'guests'));
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
     return `<div class="card list">${list.map((g) => { const s = guestStats(g); return `<button class="row" data-act="open" data-col="guests" data-id="${g.id}"><div class="av olive">${esc(initials(g.name))}</div>
@@ -197,11 +207,11 @@ V.guests = {
 /* ================= GRUP & ETKİNLİK ================= */
 V.opps = {
   title: () => 'Grup & Etkinlik Talepleri',
-  head: () => `${searchBox('Başlık, firma ara')}<button class="btn" data-act="exportCol" data-col="opps" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newOpp', 'Yeni talep', 'opps')}`,
+  head: () => `${searchBox('Başlık, firma ara')}${printBtn('opps')}<button class="btn" data-act="exportCol" data-col="opps" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newOpp', 'Yeni talep', 'opps')}`,
   chips: () => chip('kind', '', 'Tümü', D().opps.length) + Object.entries(OPP_KINDS).map(([k, l]) => chip('kind', k, l, D().opps.filter((o) => o.kind === k).length)).join(''),
   body: () => {
     if (!D().opps.length) return empty('Henüz talep yok', 'Grup konaklama, toplantı, yemek ve özel etkinlik taleplerini aşama aşama buradan takip edin.', addBtn('newOpp', 'İlk talebi ekle', 'opps'));
-    const list = D().opps.filter((o) => (!S.f.kind || o.kind === S.f.kind) && match(S.q, o.title, o.contactName, (byId('accounts', o.accountId) || {}).name));
+    const list = LIST.opps();
     const ed = can.edit('opps');
     return `<div class="kanban">${OPP_STAGES.map(([k, l]) => { const li = sortBy(list.filter((o) => o.stage === k), (o) => o.start || '9999'); return `<div class="col" data-stage="${k}"><h4>${l} <span>${li.length} · ${moneyMap(sumByCur(li, (o) => num(o.value)))}</span></h4>
       ${li.map((o) => { const acc = byId('accounts', o.accountId); return `<button class="kc" ${ed ? 'draggable="true"' : ''} data-act="open" data-col="opps" data-id="${o.id}"><b>${esc(o.title)}</b><span>${esc([acc && acc.name, OPP_KINDS[o.kind]].filter(Boolean).join(' · '))}</span>
@@ -216,11 +226,11 @@ export const wedConflicts = (w) => (w.date && w.stage !== 'kaybedildi' ? D().wed
 const wedYears = () => Array.from(new Set(D().weddings.map((w) => (w.date || '').slice(0, 4)).filter(Boolean))).sort();
 V.weddings = {
   title: () => 'Düğün Teklifleri',
-  head: () => `${searchBox('Çift adı, telefon ara')}<button class="btn" data-act="exportCol" data-col="weddings" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newWedding', 'Yeni teklif', 'weddings')}`,
+  head: () => `${searchBox('Çift adı, telefon ara')}${printBtn('weddings')}<button class="btn" data-act="exportCol" data-col="weddings" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newWedding', 'Yeni teklif', 'weddings')}`,
   chips: () => chip('ws', '', 'Tümü', D().weddings.length) + WED_STAGES.map(([k, l]) => chip('ws', k, l, D().weddings.filter((w) => w.stage === k).length)).join('') + (wedYears().length > 1 ? '<span style="width:8px"></span>' + chip('wy', '', 'Tüm yıllar') + wedYears().map((y) => chip('wy', y, y)).join('') : ''),
   body: () => {
     if (!D().weddings.length) return empty('Henüz düğün teklifi yok', 'Çiftin bilgilerini, tarihi, kişi başı fiyatı ve ek hizmetleri girin; teklif yazdırmaya hazır olsun.', addBtn('newWedding', 'İlk teklifi ekle', 'weddings'));
-    const list = sortBy(D().weddings.filter((w) => (!S.f.ws || w.stage === S.f.ws) && (!S.f.wy || (w.date || '').startsWith(S.f.wy)) && match(S.q, w.couple, w.phone, w.email)), (w) => w.date || '9999');
+    const list = LIST.weddings();
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
     const tot = sumByCur(list.filter((w) => w.stage !== 'kaybedildi'), wedTotal);
     return `<p class="muted" style="margin:0 0 10px">${list.length} teklif · kaybedilenler hariç toplam ${moneyMap(tot)}</p><div class="card list">${list.map((w) => `<button class="row" data-act="open" data-col="weddings" data-id="${w.id}">${dateBox(w.date)}
@@ -232,12 +242,11 @@ V.weddings = {
 /* ================= GÖREVLER ================= */
 V.tasks = {
   title: () => 'Görevler & Takipler',
-  head: () => addBtn('newTask', 'Yeni görev', 'tasks'),
+  head: () => printBtn('tasks') + addBtn('newTask', 'Yeni görev', 'tasks'),
   chips: () => chip('t', '', 'Açık', D().tasks.filter((t) => !t.done).length) + chip('t', 'mine', 'Bana atanan', myOpen().length) + chip('t', 'late', 'Geciken', overdue().length) + chip('t', 'done', 'Tamamlanan'),
   body: () => {
     const f = S.f.t || '';
-    let list = D().tasks.filter((t) => (f === 'done' ? t.done : !t.done) && (f !== 'mine' || t.assigneeId === S.user.uid) && (f !== 'late' || (t.due && t.due < today())));
-    list = f === 'done' ? sortBy(list, (t) => t.doneAt || 0, -1).slice(0, 100) : sortBy(list, (t) => t.due || '9999');
+    const list = LIST.tasks();
     if (!list.length) return empty(f === 'done' ? 'Tamamlanan görev yok' : 'Açık görev yok', 'Aktivite girerken takip tarihi verirseniz görev kendiliğinden açılır.', addBtn('newTask', 'Görev ekle', 'tasks'));
     return `<div class="card list">${list.map(taskRow).join('')}</div>`;
   },
@@ -248,7 +257,7 @@ A.calMove = (el) => { const [y, m] = S.calMonth.split('-').map(Number); const d 
 A.calToday = () => { S.calMonth = today().slice(0, 7); renderView(); };
 V.cal = {
   title: () => { if (!S.calMonth) S.calMonth = today().slice(0, 7); const [y, m] = S.calMonth.split('-').map(Number); return `${MONTHS[m - 1]} ${y}`; },
-  head: () => `<button class="btn" data-act="calMove" data-d="-1" aria-label="Önceki ay">${ic('left')}</button><button class="btn" data-act="calToday">Bugün</button><button class="btn" data-act="calMove" data-d="1" aria-label="Sonraki ay">${ic('right')}</button>`,
+  head: () => `<button class="btn" data-act="calMove" data-d="-1" aria-label="Önceki ay">${ic('left')}</button><button class="btn" data-act="calToday">Bugün</button><button class="btn" data-act="calMove" data-d="1" aria-label="Sonraki ay">${ic('right')}</button><button class="btn" data-act="printPage" data-title="Takvim" title="Yazdır / PDF">${ic('printer')}</button>`,
   body: () => {
     const [y, m] = S.calMonth.split('-').map(Number);
     const first = new Date(y, m - 1, 1, 12); const off = (first.getDay() + 6) % 7; const start = new Date(first); start.setDate(1 - off);
@@ -302,8 +311,8 @@ const SHEETS = {
     const acc = byId('accounts', o.accountId);
     return { title: o.title, body: `
       <div class="acts" style="align-items:center">${stageSel('opps', o, OPP_STAGES)}<span class="badge teal">${esc(OPP_KINDS[o.kind] || '')}</span></div>
-      <div class="acts">${contactBtns(o.phone, '')}</div>
-      <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Tahmini tutar', o.value ? money(o.value, o.currency) : ''], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
+      <div class="acts">${contactBtns(o.phone, acc && acc.email)}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} Teklif</button></div>
+      <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Tahmini tutar', o.value ? money(o.value, o.currency) : ''], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
       ${relBlocks('opps', o.id)}${foot(o)}` };
   },
   weddings: (w) => {
@@ -311,7 +320,7 @@ const SHEETS = {
     return { title: w.couple, body: `
       ${cf.length ? `<div class="banner" style="margin:0">${ic('warn')}<span>Aynı gün ve mekânda başka kayıt var: <b>${esc(cf.map((x) => x.couple).join(', '))}</b></span></div>` : ''}
       <div class="acts" style="align-items:center">${stageSel('weddings', w, WED_STAGES)}<span class="badge terra">${esc(w.eventType || 'Düğün')}</span></div>
-      <div class="acts">${contactBtns(w.phone, w.email)}<button class="btn sm pri" data-act="offer" data-id="${w.id}">${ic('printer')} Teklif</button></div>
+      <div class="acts">${contactBtns(w.phone, w.email)}<button class="btn sm pri" data-act="offer" data-col="weddings" data-id="${w.id}">${ic('note')} Teklif</button></div>
       <div class="card pad"><h3>Organizasyon</h3>${dl([['Tarih', w.date ? fmtDateLong(w.date) : ''], ['Mekân', w.venue], ['Davetli', w.guests], ['Menü / paket', w.menu], ['Telefon', w.phone], ['E-posta', w.email], ['Kaynak', w.source], ['Sorumlu', userName(w.ownerId)], ['Geçerlilik', fmtDate(w.validUntil)], ['Kayıp nedeni', w.stage === 'kaybedildi' ? w.lossReason : ''], ['Notlar', w.notes]])}</div>
       <div class="card pad"><h3>Fiyat</h3><table class="tb">
         <tr><td>${fmtNum(num(w.guests))} kişi × ${money(num(w.perPerson), w.currency)}</td><td class="n">${money(num(w.guests) * num(w.perPerson), w.currency)}</td></tr>
@@ -330,7 +339,7 @@ export function renderSheet() {
   if (!r) { root.innerHTML = ''; S.sheet = null; return; }
   const s = SHEETS[S.sheet.col](r);
   root.innerHTML = `<div class="ov"><aside class="sheet"><div class="sh"><div style="flex:1;min-width:0"><div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em">${COL_LABEL[S.sheet.col]}</div><h2>${esc(s.title)}</h2></div>
-    ${can.edit(S.sheet.col) ? `<button class="btn sm" data-act="edit" data-col="${S.sheet.col}" data-id="${r.id}">${ic('pencil')} Düzenle</button>` : ''}<button class="x" data-act="closeSheet" aria-label="Kapat">${ic('x')}</button></div><div class="sb">${s.body}</div></aside></div>`;
+    <button class="btn sm" data-act="printRec" data-col="${S.sheet.col}" data-id="${r.id}" title="Yazdır / PDF" aria-label="Yazdır">${ic('printer')}</button>${can.edit(S.sheet.col) ? `<button class="btn sm" data-act="edit" data-col="${S.sheet.col}" data-id="${r.id}">${ic('pencil')} Düzenle</button>` : ''}<button class="x" data-act="closeSheet" aria-label="Kapat">${ic('x')}</button></div><div class="sb">${s.body}</div></aside></div>`;
   const n = $('.sheet', root); if (n) n.scrollTop = top;
 }
 export { guestStats, isVip, specialDays };

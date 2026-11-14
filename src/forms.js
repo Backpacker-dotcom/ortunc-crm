@@ -74,7 +74,7 @@ export function guestForm(rec) {
 export function oppForm(rec, preset = {}) {
   openForm({
     title: rec ? 'Talebi düzenle' : 'Yeni grup / etkinlik talebi',
-    data: rec || { kind: 'grup', stage: 'talep', currency: 'TRY', ownerId: S.user.uid, property: S.settings.properties[0], ...preset },
+    data: rec || { kind: 'grup', stage: 'talep', currency: 'TRY', ownerId: S.user.uid, property: S.settings.properties[0], validUntil: addDays(today(), 10), ...preset },
     fields: [
       { k: 'title', label: 'Başlık', req: true, ph: 'ör. X Firması bayi toplantısı' },
       { k: 'kind', label: 'Tür', type: 'select', opts: opts(OPP_KINDS), req: true, half: true },
@@ -91,7 +91,8 @@ export function oppForm(rec, preset = {}) {
       { k: 'currency', label: 'Para birimi', type: 'select', opts: CURS, req: true, half: true },
       { k: 'source', label: 'Kaynak', type: 'select', opts: listOpts(S.settings.sources), half: true },
       { k: 'ownerId', label: 'Sorumlu', type: 'select', opts: userOpts(), half: true },
-      { k: 'lossReason', label: 'Kayıp nedeni (kaybedildiyse)', ph: 'ör. Fiyat, tarih uygun değil, rakip otel' },
+      { k: 'validUntil', label: 'Teklif geçerlilik', type: 'date', half: true },
+      { k: 'lossReason', label: 'Kayıp nedeni (kaybedildiyse)', half: true, ph: 'ör. Fiyat, tarih dolu' },
       { k: 'notes', label: 'Notlar', type: 'textarea' },
     ],
     onSave: async (v) => {

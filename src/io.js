@@ -6,18 +6,7 @@ import {
 } from './core.js';
 import { newId } from './store.js';
 
-/* ---------- dosya kaydetme ---------- */
-function b64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
-function saveFile(name, mime, u8) {
-  if (window.Android && window.Android.saveB64) { window.Android.saveB64(name, mime, b64(u8)); return; }
-  try {
-    const url = URL.createObjectURL(new Blob([u8], { type: mime }));
-    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    toast(name + ' indiriliyor');
-  } catch (e) { toast('Dosya indirilemedi.'); }
-}
-window.onNativeExport = (ok) => toast(ok ? 'Dosya kaydedildi' : 'Kaydedilmedi');
+import { saveFile } from './print.js';
 const XMIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 function writeBook(name, sheets) {
   const wb = XLSX.utils.book_new();
@@ -123,57 +112,6 @@ export async function handleImportFile(input) {
 A.importGo = async (el) => {
   if (!pending) return; el.disabled = true;
   try { await S.store.saveMany(pending.col, pending.list); toast(pending.list.length + ' kayıt aktarıldı'); pending = null; closeModal(); } catch (e) { toast(errText(e)); el.disabled = false; }
-};
-
-/* ---------- düğün teklifi ---------- */
-const OFFER_CSS = `.offer{font-family:Georgia,"Times New Roman",serif;color:#1d2a2a;max-width:720px;margin:0 auto;padding:28px 30px;background:#fff;font-size:14px;line-height:1.5}
-.offer h1{font-size:28px;margin:0;font-weight:600;letter-spacing:.02em}.offer .tag{font:600 10.5px/1 Arial,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#1e5e5a;margin-top:6px}
-.offer .top{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;border-bottom:2px solid #1e5e5a;padding-bottom:14px;margin-bottom:20px}
-.offer .top div:last-child{text-align:right;font:12px/1.5 Arial,sans-serif;color:#555}
-.offer h2{font-size:21px;font-weight:600;margin:0 0 4px}.offer p{margin:0 0 12px}
-.offer table{width:100%;border-collapse:collapse;margin:8px 0 16px;font:13.5px/1.4 Arial,sans-serif}
-.offer .info td{padding:5px 0;vertical-align:top}.offer .info td:first-child{color:#667370;width:150px}
-.offer .price th{background:#e3efec;text-align:left;padding:8px 10px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#1e5e5a}
-.offer .price td{padding:8px 10px;border-bottom:1px solid #e3dcd0}.offer .price td:last-child,.offer .price th:last-child{text-align:right;white-space:nowrap}
-.offer .price tr.t td{border-top:2px solid #1d2a2a;border-bottom:0;font-weight:700;font-size:15.5px}
-.offer .note{font:12.5px/1.55 Arial,sans-serif;color:#555;border-top:1px solid #e3dcd0;padding-top:12px;margin-top:8px;white-space:pre-wrap}
-.offer .sig{margin-top:26px;font:13px/1.5 Arial,sans-serif}
-@media screen and (max-width:560px){.offer{padding:18px 16px}.offer h1{font-size:22px}.offer .info td:first-child{width:110px}}`;
-function offerBody(w) {
-  const st = S.settings, tot = wedTotal(w), c = w.currency;
-  return `<div class="offer"><div class="top"><div><h1>${esc(st.hotelName)}</h1><div class="tag">${esc(w.eventType || 'Düğün')} Teklifi</div></div>
-    <div>${[st.address, st.phone, st.email].filter(Boolean).map(esc).join('<br>')}<br>Teklif tarihi: ${fmtDate(today())}</div></div>
-    <h2>Sayın ${esc(w.couple)},</h2><p>En özel gününüz için bizi düşündüğünüz için teşekkür ederiz. Organizasyonunuza ait teklifimiz aşağıdadır.</p>
-    <table class="info">${[['Tarih', w.date ? fmtDateLong(w.date) : 'Belirlenecek'], ['Mekân', w.venue], ['Davetli sayısı', w.guests ? fmtNum(w.guests) + ' kişi' : ''], ['Menü / paket', w.menu]].filter((x) => x[1]).map(([k, v]) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')}</table>
-    <table class="price"><tr><th>Hizmet</th><th>Tutar</th></tr>
-      <tr><td>${esc(w.menu || 'Organizasyon')} — ${fmtNum(num(w.guests))} kişi × ${money(num(w.perPerson), c)}</td><td>${money(num(w.guests) * num(w.perPerson), c)}</td></tr>
-      ${(w.extras || []).map((x) => `<tr><td>${esc(x.name)}</td><td>${money(num(x.amount), c)}</td></tr>`).join('')}
-      ${num(w.discount) ? `<tr><td>İndirim</td><td>−${money(num(w.discount), c)}</td></tr>` : ''}
-      <tr class="t"><td>Toplam</td><td>${money(tot, c)}</td></tr>
-      ${num(w.deposit) ? `<tr><td>Rezervasyon için kapora</td><td>${money(num(w.deposit), c)}</td></tr>` : ''}</table>
-    <div class="note">${w.validUntil ? `Bu teklif ${fmtDate(w.validUntil)} tarihine kadar geçerlidir.\n` : ''}${esc(st.offerNote || '')}</div>
-    <div class="sig">Saygılarımızla,<br><b>${esc(userName(w.ownerId) || S.user.name)}</b><br>${esc(st.hotelName)}</div></div>`;
-}
-function offerText(w) {
-  const c = w.currency;
-  return [`${S.settings.hotelName} — ${w.eventType || 'Düğün'} Teklifi`, `Sayın ${w.couple},`, w.date ? `Tarih: ${fmtDateLong(w.date)}` : '', w.venue ? `Mekân: ${w.venue}` : '', w.guests ? `Davetli: ${w.guests} kişi` : '', w.menu ? `Menü: ${w.menu}` : '',
-    `Kişi başı: ${money(num(w.perPerson), c)}`, ...(w.extras || []).map((x) => `${x.name}: ${money(num(x.amount), c)}`), num(w.discount) ? `İndirim: −${money(num(w.discount), c)}` : '', `TOPLAM: ${money(wedTotal(w), c)}`,
-    num(w.deposit) ? `Kapora: ${money(num(w.deposit), c)}` : '', w.validUntil ? `Geçerlilik: ${fmtDate(w.validUntil)}` : ''].filter(Boolean).join('\n');
-}
-A.offer = (el) => {
-  const w = byId('weddings', el.dataset.id); if (!w) return;
-  infoModal('Teklif önizleme', `<style>${OFFER_CSS}</style><div style="border:1px solid var(--line);border-radius:10px;overflow:auto">${offerBody(w)}</div>`,
-    `<button class="btn" data-act="offerCopy" data-id="${w.id}">${ic('copy')} Metni kopyala</button>${w.phone ? `<button class="btn" data-act="offerWa" data-id="${w.id}">${ic('wa')} WhatsApp</button>` : ''}<button class="btn pri" data-act="offerPrint" data-id="${w.id}">${ic('printer')} Yazdır / PDF</button>`);
-};
-A.offerCopy = (el) => copyText(offerText(byId('weddings', el.dataset.id)));
-A.offerWa = (el) => { const w = byId('weddings', el.dataset.id); let d = digits(w.phone); if (d.length === 11 && d[0] === '0') d = '9' + d; else if (d.length === 10) d = '90' + d; window.open(`https://wa.me/${d}?text=${encodeURIComponent(offerText(w))}`, '_blank', 'noopener'); };
-A.offerPrint = (el) => {
-  const w = byId('weddings', el.dataset.id); const name = `Teklif-${w.couple.replace(/[^\p{L}\p{N}]+/gu, '-')}`;
-  if (window.Android && window.Android.printHtml) { window.Android.printHtml(name, `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}${OFFER_CSS}</style></head><body>${offerBody(w)}</body></html>`); return; }
-  const pa = $('#printArea'); pa.innerHTML = `<style>${OFFER_CSS}@media screen{#printArea{display:none}}@media print{body>*:not(#printArea){display:none!important}#printArea{display:block}@page{margin:12mm}}</style>${offerBody(w)}`;
-  const t = document.title; document.title = name;
-  try { window.print(); } catch (e) { toast('Yazdırma bu ortamda açılamadı.'); }
-  setTimeout(() => { document.title = t; }, 800);
 };
 
 /* ---------- örnek veri (demo) ---------- */

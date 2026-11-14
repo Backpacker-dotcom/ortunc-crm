@@ -221,3 +221,5 @@ pre.code{background:#1D2A2A;color:#DCE9E6;border-radius:10px;padding:12px;font-s
 }
 .menu-grid .btn{justify-content:flex-start;min-height:52px}
 @media print{body{background:#fff}}
+
+@media (max-width:900px){.hide-m{display:none}}

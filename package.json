@@ -1,6 +1,6 @@
 {
   "name": "ortunc-crm",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "docx": "^9.15.4",
     "esbuild": "^0.28.2",
     "firebase": "^13.3.0",
     "lucide": "^1.73.0",
