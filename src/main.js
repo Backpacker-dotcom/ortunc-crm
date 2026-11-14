@@ -10,6 +10,9 @@ import './offer.js';
 import { handleAttach, filesCard } from './files.js';
 import { cardsSettingsCard, guestOccCard } from './cards.js';
 import { blBanner, blBadge, blSheet, BL_REASONS } from './blacklist.js';
+import { handleGuestFile } from './guestimport.js';
+import { saveFile } from './print.js';
+A._saveFile = saveFile;
 A._blBanner = blBanner; A._blBadge = blBadge; A._sheets = { blacklist: blSheet }; A._BL = BL_REASONS;
 A._guestOccCard = guestOccCard;
 A._filesCard = filesCard;
@@ -112,8 +115,8 @@ V.settings = {
       <div class="card pad"><h3>Otel bilgileri</h3><dl class="dl"><dt>İşletme</dt><dd>${esc(st.hotelName)}</dd><dt>Telefon</dt><dd>${esc(st.phone || '—')}</dd><dt>E-posta</dt><dd>${esc(st.email || '—')}</dd><dt>Tesisler</dt><dd>${esc(st.properties.join(', '))}</dd><dt>Kaynaklar</dt><dd>${esc(st.sources.join(', '))}</dd></dl>
         ${adm ? `<div style="margin-top:14px"><button class="btn" data-act="editSettings">${ic('pencil')} Düzenle</button></div>` : ''}</div>
       <div class="card pad"><h3>Excel</h3><p class="muted" style="margin-top:0">Toplu kayıt aktarın ya da tüm veriyi yedek olarak indirin. Aynı adla kayıtlı acenteler atlanır; misafirlerde yeni konaklamalar mevcut kayda eklenir.</p>
-        <div class="acts">${can.edit('accounts') ? `<button class="btn" data-act="importPick" data-col="accounts">${ic('upload')} Acente içe aktar</button>` : ''}${can.edit('guests') ? `<button class="btn" data-act="importPick" data-col="guests">${ic('upload')} Misafir içe aktar</button>` : ''}<button class="btn" data-act="exportAll">${ic('download')} Tüm veriyi indir</button></div>
-        <div class="acts" style="margin-top:8px"><button class="linkbtn" data-act="template" data-col="accounts">Acente şablonu</button><button class="linkbtn" data-act="template" data-col="guests">Misafir şablonu</button></div></div>
+        <div class="acts">${can.edit('accounts') ? `<button class="btn" data-act="importPick" data-col="accounts">${ic('upload')} Acente içe aktar</button>` : ''}${can.edit('guests') ? `<button class="btn" data-act="guestImport">${ic('upload')} Misafir içe aktar</button>` : ''}<button class="btn" data-act="exportAll">${ic('download')} Tüm veriyi indir</button></div>
+        <div class="acts" style="margin-top:8px"><button class="linkbtn" data-act="template" data-col="accounts">Acente şablonu</button><button class="linkbtn" data-act="guestTemplate">Misafir şablonu</button></div></div>
       <div class="card pad" style="grid-column:1/-1"><h3>Teklif metinleri</h3><p class="muted" style="margin-top:0">Tekliflerin ana metni. İçindeki <code>{çift}</code>, <code>{tarih}</code>, <code>{toplam}</code> gibi etiketler her teklifte kayıttaki bilgiyle dolar; teklif Word, PDF, WhatsApp ya da e-posta olarak gönderilmeye hazır olur.</p>
         <div class="acts"><button class="btn ${adm ? 'pri' : ''}" data-act="tplOpen" data-col="weddings">${ic('heart')} Düğün teklifi metni</button><button class="btn" data-act="tplOpen" data-col="opps">${ic('handshake')} Grup & etkinlik teklifi metni</button></div>
         <p class="muted" style="font-size:12.5px;margin:10px 0 0">${S.settings.templates && S.settings.templates.weddings ? 'Düğün teklifi için kendi metniniz kullanılıyor.' : 'Şu an örnek metin kullanılıyor; kendi metninizi yapıştırın.'}</p></div>
@@ -214,6 +217,7 @@ document.addEventListener('change', (ev) => {
   const el = ev.target;
   if (el.id === 'importFile') return handleImportFile(el);
   if (el.id === 'attachFile') return handleAttach(el);
+  if (el.id === 'guestFile') return handleGuestFile(el);
   if (el.dataset && el.dataset.change && A[el.dataset.change]) A[el.dataset.change](el, ev);
 });
 document.addEventListener('input', (ev) => { if (ev.target.matches && ev.target.matches('[data-search]')) { S.q = ev.target.value; renderBody(); } });

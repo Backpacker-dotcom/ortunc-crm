@@ -189,11 +189,11 @@ const guestStats = (g) => { const st = g.stays || []; const nights = st.reduce((
 const isVip = (g) => (g.tags || []).some((t) => t.toLocaleLowerCase('tr-TR') === 'vip');
 V.guests = {
   title: () => 'Misafirler',
-  head: () => `${searchBox('Ad, telefon, şehir ara')}${printBtn('guests')}<button class="btn" data-act="exportCol" data-col="guests" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newGuest', 'Yeni', 'guests')}`,
+  head: () => `${searchBox('Ad, telefon, şehir ara')}${can.edit('guests') ? `<button class="btn" data-act="guestImport" title="Excel / CSV listesinden toplu aktar">${ic('upload')}<span class="hide-m"> Excel'den aktar</span></button>` : ''}${printBtn('guests')}<button class="btn" data-act="exportCol" data-col="guests" title="Excel'e aktar">${ic('download')} Excel</button>${addBtn('newGuest', 'Yeni', 'guests')}`,
   chips: () => chip('g', '', 'Tümü', D().guests.length) + chip('g', 'vip', 'VIP', D().guests.filter(isVip).length) + chip('g', 'repeat', 'Tekrar gelen', D().guests.filter((g) => (g.stays || []).length > 1).length) + chip('g', 'special', 'Özel günü yaklaşan', specialDays(30).length),
   body: () => {
     const list = LIST.guests();
-    if (!D().guests.length) return empty('Henüz misafir kaydı yok', 'Misafirlerinizi tercihleri, özel günleri ve konaklama geçmişiyle birlikte kaydedin.', addBtn('newGuest', 'İlk misafiri ekle', 'guests'));
+    if (!D().guests.length) return empty('Henüz misafir kaydı yok', 'Misafirlerinizi tek tek ekleyin ya da otel programından aldığınız Excel / CSV listesini toplu aktarın; doğum günleri Kutlamalar ekranına kendiliğinden düşer.', addBtn('newGuest', 'İlk misafiri ekle', 'guests') + (can.edit('guests') ? ` <button class="btn" data-act="guestImport">${ic('upload')} Excel'den aktar</button>` : ''));
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
     return `<div class="card list">${list.map((g) => { const s = guestStats(g); return `<button class="row" data-act="open" data-col="guests" data-id="${g.id}"><div class="av olive">${esc(initials(g.name))}</div>
       <div class="t"><b>${esc(g.name)} ${isVip(g) ? '<span class="badge gold">VIP</span>' : ''}${A._blBadge ? A._blBadge('guests', g) : ''}</b><span>${esc([g.city || g.country, g.phone].filter(Boolean).join(' · '))}</span></div>

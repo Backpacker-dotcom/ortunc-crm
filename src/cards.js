@@ -138,7 +138,7 @@ A.celPick = (el) => { if (el.value) { S.celDay = el.value; A._renderView(); } };
 V.cel = {
   title: () => (S.celDay === today() ? 'Bugünün kutlamaları' : 'Kutlamalar · ' + fmtDateLong(S.celDay)),
   head: () => `<button class="btn" data-act="celMove" data-d="-1" aria-label="Önceki gün">${ic('left')}</button><input type="date" class="inp" style="width:auto" value="${S.celDay}" data-change="celPick" aria-label="Tarih"><button class="btn" data-act="celMove" data-d="1" aria-label="Sonraki gün">${ic('right')}</button>${S.celDay !== today() ? '<button class="btn" data-act="celMove" data-d="0">Bugün</button>' : ''}
-    ${occasionsOn(S.celDay).length ? `<button class="btn" data-act="cardsPrintAll">${ic('printer')} Tüm kartları yazdır</button>` : ''}${can.edit('guests') ? `<button class="btn pri" data-act="celQuick">${ic('plus')} Doğum günü / özel gün ekle</button>` : ''}`,
+    ${occasionsOn(S.celDay).length ? `<button class="btn" data-act="cardsPrintAll">${ic('printer')} Tüm kartları yazdır</button>` : ''}${can.edit('guests') ? `<button class="btn" data-act="guestImport" title="Excel / CSV listesinden toplu aktar">${ic('upload')}<span class="hide-m"> Excel'den aktar</span></button>` : ''}${can.edit('guests') ? `<button class="btn pri" data-act="celQuick">${ic('plus')} Doğum günü / özel gün ekle</button>` : ''}`,
   body: () => {
     const evs = sortBy(occasionsOn(S.celDay), (e) => (stayOn(e.g, S.celDay) ? '0' : '1') + e.g.name);
     const row = (ev) => {
