@@ -103,19 +103,21 @@ export const yearsSince = (date, day) => { const y = Number(String(date).slice(0
 /* ---------- fiyat kalemleri ve vergiler ---------- */
 // Her kalem: { name, qty, price, cur, kdv(%), kv(%), mode: 'dahil' | 'ekle' }
 // Konaklama vergisi KDV hariç bedel üzerinden alınır; KDV matrahına konaklama vergisi dahildir.
-export const taxCfg = () => ({ kdv: 10, kv: 2, mode: 'dahil', ...(S.settings.tax || {}) });
+// Konaklama vergisi varsayılanı %1. (Eski sürümde %2 kaydedilmişse ve oran elle değiştirilmemişse %1 kabul edilir.)
+export const taxCfg = () => { const t = { kdv: 10, kv: 1, mode: 'dahil', ...(S.settings.tax || {}) }; if (!t.v2 && Number(t.kv) === 2) t.kv = 1; return t; };
+const kvFix = (v) => (!(S.settings.tax && S.settings.tax.v2) && Number(v) === 2 ? 1 : v);
 export const KDV_OPTS = [['0', 'Yok'], ['1', '%1'], ['10', '%10'], ['20', '%20']];
 export const kvOpts = () => [['0', 'Yok'], [String(taxCfg().kv), `%${taxCfg().kv}`]];
 export const MODE_OPTS = [['dahil', 'Dahil'], ['ekle', 'Eklenecek']];
 export const QTY_RULES = [['kisi_gun', 'Kişi × gün'], ['kisi_gece', 'Kişi × gece'], ['kisi', 'Kişi sayısı'], ['oda_gece', 'Oda × gece'], ['gun', 'Gün sayısı'], ['gece', 'Gece sayısı'], ['adet', '1 adet']];
 const P = (id, name, rule, kdv, kv = 0, price = '') => ({ id, name, rule, kdv, kv, price, cur: 'TRY', mode: '' });
 export const DEFAULT_PRESETS = {
-  opps: [P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 2), P('coffee', 'Coffee break (kişi başı)', 'kisi_gun', 10), P('ogle', 'Öğle yemeği (kişi başı)', 'kisi_gun', 10),
+  opps: [P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 1), P('coffee', 'Coffee break (kişi başı)', 'kisi_gun', 10), P('ogle', 'Öğle yemeği (kişi başı)', 'kisi_gun', 10),
     P('aksam', 'Akşam yemeği (kişi başı)', 'kisi_gece', 10), P('salonyarim', 'Toplantı salonu · yarım gün', 'gun', 20), P('salontam', 'Toplantı salonu · tam gün', 'gun', 20), P('ozel', '', 'adet', 20)],
   weddings: [P('menu', 'Menü (kişi başı)', 'kisi', 10), P('icecek', 'İçecek paketi (kişi başı)', 'kisi', 20), P('susleme', 'Süsleme ve çiçek', 'adet', 20), P('muzik', 'Müzik / DJ', 'adet', 20),
-    P('pasta', 'Düğün pastası', 'adet', 10), P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 2), P('ozel', '', 'adet', 20)],
+    P('pasta', 'Düğün pastası', 'adet', 10), P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 1), P('ozel', '', 'adet', 20)],
 };
-export const presetsOf = (col) => ((S.settings.presets && S.settings.presets[col]) || DEFAULT_PRESETS[col]);
+export const presetsOf = (col) => ((S.settings.presets && S.settings.presets[col]) || DEFAULT_PRESETS[col]).map((p) => ({ ...p, kv: kvFix(p.kv) }));
 export const presetLabel = (p) => p.name || 'Özel kalem';
 const dayDiff = (a, b) => (a && b ? Math.max(0, Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5)) : 0);
 export function ruleQty(rule, get) {
@@ -239,7 +241,7 @@ function inputHtml(f, v, attr) {
   }
   if (f.type === 'textarea') return `<textarea ${common}>${esc(val)}</textarea>`;
   const t = f.type || 'text';
-  const extra = t === 'number' ? `inputmode="decimal" step="any" ${f.neg ? '' : 'min="0"'}` : t === 'tel' ? 'inputmode="tel"' : '';
+  const extra = (t === 'number' ? `inputmode="decimal" step="any" ${f.neg ? '' : 'min="0"'}` : t === 'tel' ? 'inputmode="tel"' : '') + (f.list ? ` list="${f.list}"` : '') + (f.max != null ? ` max="${f.max}"` : '');
   return `<input type="${t === 'number' ? 'number' : t}" value="${esc(val)}" ${extra} ${common}>`;
 }
 function subRowHtml(f, row = {}) {
@@ -265,7 +267,8 @@ export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel
   const r = $('#modal');
   r.innerHTML = `<div class="ov center"><form class="modal" id="frm" novalidate ${wide ? 'style="width:min(980px,100%)"' : ''}>
     <div class="mh"><h2>${esc(title)}</h2><button type="button" class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div>
-    <div class="mb">${intro}<div class="form">${fields.map((f) => fieldHtml(f, data)).join('')}<div class="err" id="frmErr" hidden></div></div></div>
+    <div class="mb">${intro}<div class="form">${fields.map((f) => fieldHtml(f, data)).join('')}<div class="err" id="frmErr" hidden></div></div>
+    <datalist id="dlKdv"><option value="0"></option><option value="1"></option><option value="10"></option><option value="20"></option></datalist><datalist id="dlKv"><option value="0"></option><option value="1"></option><option value="2"></option></datalist></div>
     <div class="mf">${onDelete ? '<button type="button" class="btn danger sp" id="frmDel">Sil</button>' : ''}<button type="button" class="btn" data-act="closeModal">Vazgeç</button><button class="btn pri" type="submit">${esc(saveLabel)}</button></div>
   </form></div>`;
   const frm = $('#frm', r);

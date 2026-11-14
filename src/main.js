@@ -73,17 +73,17 @@ V.reports = {
 /* ================= AYARLAR ================= */
 const lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
 A.editSettings = () => openForm({
-  title: 'Otel bilgileri ve listeler', data: { ...S.settings, properties: S.settings.properties.join('\n'), sources: S.settings.sources.join('\n'), tKdv: String(taxCfg().kdv), tKv: taxCfg().kv, tMode: taxCfg().mode },
+  title: 'Otel bilgileri ve listeler', data: { ...S.settings, properties: S.settings.properties.join('\n'), sources: S.settings.sources.join('\n'), tKdv: taxCfg().kdv, tKv: taxCfg().kv, tMode: taxCfg().mode },
   fields: [
     { k: 'hotelName', label: 'Otel / işletme adı', req: true }, { k: 'phone', label: 'Telefon', type: 'tel', half: true }, { k: 'email', label: 'E-posta', type: 'email', half: true }, { k: 'address', label: 'Adres' },
     { k: 'properties', label: 'Tesisler / mekânlar', type: 'textarea', hint: 'Her satıra bir tane. Talep ve düğün formlarındaki listelerde çıkar.' },
     { k: 'sources', label: 'Talep kaynakları', type: 'textarea', hint: 'Her satıra bir tane.' },
     { type: 'section', label: 'Teklif vergileri (yeni kalemlerde varsayılan)' },
-    { k: 'tKdv', label: 'Varsayılan KDV', type: 'select', opts: KDV_OPTS, req: true, half: true },
-    { k: 'tKv', label: 'Konaklama vergisi oranı %', type: 'number', req: true, half: true },
+    { k: 'tKdv', label: 'Varsayılan KDV %', type: 'number', list: 'dlKdv', req: true, half: true },
+    { k: 'tKv', label: 'Konaklama vergisi oranı %', type: 'number', list: 'dlKv', req: true, half: true, hint: 'Konaklama kalemlerine otomatik gelir; her teklifte kalem bazında değiştirilebilir.' },
     { k: 'tMode', label: 'Vergiler varsayılan olarak', type: 'select', opts: MODE_OPTS, req: true },
   ],
-  onSave: async (v) => { const { tKdv, tKv, tMode, ...rest } = v; await S.store.save('settings', { ...S.settings, ...rest, id: 'main', properties: lines(v.properties), sources: lines(v.sources), tax: { kdv: num(tKdv), kv: num(tKv), mode: tMode } }); toast('Kaydedildi'); },
+  onSave: async (v) => { const { tKdv, tKv, tMode, ...rest } = v; await S.store.save('settings', { ...S.settings, ...rest, id: 'main', properties: lines(v.properties), sources: lines(v.sources), tax: { kdv: num(tKdv), kv: num(tKv), mode: tMode, v2: true } }); toast('Kaydedildi'); },
 });
 A.newUser = () => openForm({
   title: 'Yeni kullanıcı', saveLabel: 'Kullanıcıyı oluştur',
@@ -110,13 +110,13 @@ A.presetEdit = (el) => {
     title: col === 'opps' ? 'Grup & etkinlik · hazır kalemler' : 'Düğün · hazır kalemler', wide: true, saveLabel: adm ? 'Kaydet' : 'Kapat',
     intro: `<p class="muted" style="margin-top:0">Ad boş bırakılan kalem "Özel kalem" düğmesi olur; adı formda yazılır. Fiyat boşsa formda girilir.${adm ? '' : ' Bu listeyi yalnızca yönetici değiştirebilir.'}</p>`,
     data: { list: presetsOf(col).map((p) => ({ ...p, kdv: String(p.kdv), kv: String(p.kv), mode: p.mode || '' })) },
-    fields: [{ k: 'list', label: 'Kalemler', type: 'rows', cls: 'presets', keepEmpty: true, addLabel: 'Kalem ekle', heads: ['Kalem adı', 'Miktar nasıl hesaplansın', 'Varsayılan fiyat', 'Para birimi', 'KDV', 'Konaklama vergisi', 'Vergiler'],
+    fields: [{ k: 'list', label: 'Kalemler', type: 'rows', cls: 'presets', keepEmpty: true, addLabel: 'Kalem ekle', heads: ['Kalem adı', 'Miktar nasıl hesaplansın', 'Varsayılan fiyat', 'Para birimi', 'KDV %', 'Konaklama V. %', 'Vergiler'],
       sub: [{ k: 'name', ph: 'Kalem adı (boş = Özel kalem)' }, { k: 'rule', type: 'select', opts: QTY_RULES, req: true, def: 'adet' }, { k: 'price', type: 'number', ph: 'Fiyat' }, { k: 'cur', type: 'select', opts: CURS, req: true, def: 'TRY' },
-        { k: 'kdv', type: 'select', opts: KDV_OPTS, req: true, def: String(taxCfg().kdv) }, { k: 'kv', type: 'select', opts: kvOpts(), req: true, def: '0' }, { k: 'mode', type: 'select', opts: [['', 'Ayara göre'], ...MODE_OPTS], req: true, def: '' }] }],
+        { k: 'kdv', type: 'number', ph: '%', list: 'dlKdv', max: 100, def: taxCfg().kdv }, { k: 'kv', type: 'number', ph: '%', list: 'dlKv', max: 100, def: 0 }, { k: 'mode', type: 'select', opts: [['', 'Ayara göre'], ...MODE_OPTS], req: true, def: '' }] }],
     onSave: async (v) => {
       if (!adm) return;
       const list = (v.list || []).map((p, i) => ({ id: 'p' + i, name: p.name, rule: p.rule || 'adet', price: p.price === '' ? '' : num(p.price), cur: p.cur || 'TRY', kdv: num(p.kdv), kv: num(p.kv), mode: p.mode || '' }));
-      const { id, ...rest } = S.settings; await S.store.save('settings', { ...rest, id: 'main', presets: { ...(S.settings.presets || {}), [col]: list } }); toast('Hazır kalemler kaydedildi');
+      const { id, ...rest } = S.settings; await S.store.save('settings', { ...rest, id: 'main', tax: { ...taxCfg(), v2: true }, presets: { ...(S.settings.presets || {}), [col]: list } }); toast('Hazır kalemler kaydedildi');
     },
   });
 };

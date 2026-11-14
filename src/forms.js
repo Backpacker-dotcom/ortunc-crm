@@ -24,11 +24,11 @@ export function itemsField(label, hint, col) {
   const t = taxCfg();
   return {
     k: 'items', label, type: 'rows', cls: 'items', addLabel: 'Kalem ekle', hint, presets: col ? presetsOf(col) : null,
-    heads: ['Kalem', 'Miktar', 'Birim fiyat', 'Para birimi', 'KDV', 'Konaklama vergisi', 'Vergiler'],
+    heads: ['Kalem', 'Miktar', 'Birim fiyat', 'Para birimi', 'KDV %', 'Konaklama V. %', 'Vergiler'],
     sub: [
       { k: 'name', ph: 'Kalem' }, { k: 'qty', ph: 'Miktar', type: 'number' }, { k: 'price', ph: 'Birim fiyat', type: 'number', neg: true },
-      { k: 'cur', type: 'select', opts: CURS, req: true, def: 'TRY' }, { k: 'kdv', type: 'select', opts: KDV_OPTS, req: true, def: String(t.kdv) },
-      { k: 'kv', type: 'select', opts: kvOpts(), req: true, def: '0' }, { k: 'mode', type: 'select', opts: MODE_OPTS, req: true, def: t.mode },
+      { k: 'cur', type: 'select', opts: CURS, req: true, def: 'TRY' }, { k: 'kdv', type: 'number', ph: '%', list: 'dlKdv', max: 100, def: t.kdv },
+      { k: 'kv', type: 'number', ph: '%', list: 'dlKv', max: 100, def: 0 }, { k: 'mode', type: 'select', opts: MODE_OPTS, req: true, def: t.mode },
     ],
     summary: (rows, get) => {
       const c = calcItems(rows, get('guests') || 1);
