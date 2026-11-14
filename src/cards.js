@@ -11,7 +11,7 @@ export const THEMES = { zarif: 'Zarif (yeşil–altın)', sicak: 'Sıcak (kiremi
 
 /* ---------- şablonlar ---------- */
 export const DEFAULT_CARDS = [
-  { id: 'tr-dogum', name: 'Doğum günü (Türkçe)', occ: 'dogum', theme: 'zarif', text: `# İyi ki doğdunuz!
+  { id: 'tr-dogum', name: 'Doğum günü (Türkçe)', occ: 'dogum', theme: 'zarif', subject: 'İyi ki doğdunuz {ad}!', text: `# İyi ki doğdunuz!
 
 Sevgili {ad},
 
@@ -19,7 +19,7 @@ Yeni yaşınızı {otel}'de sizinle birlikte kutlamaktan büyük mutluluk duyuyo
 
 Sevgilerimizle,
 **{otel} Ailesi**` },
-  { id: 'en-dogum', name: 'Birthday (English)', occ: 'dogum', theme: 'zarif', text: `# Happy Birthday!
+  { id: 'en-dogum', name: 'Birthday (English)', occ: 'dogum', theme: 'zarif', subject: 'Happy Birthday, {ad}!', text: `# Happy Birthday!
 
 Dear {ad},
 
@@ -27,7 +27,7 @@ We are delighted to celebrate your special day with you at {otel}. Wishing you a
 
 Warmest wishes,
 **The {otel} Family**` },
-  { id: 'tr-yildonumu', name: 'Evlilik yıl dönümü (Türkçe)', occ: 'yildonumu', theme: 'sicak', text: `# Mutlu yıllar!
+  { id: 'tr-yildonumu', name: 'Evlilik yıl dönümü (Türkçe)', occ: 'yildonumu', theme: 'sicak', subject: 'Mutlu yıllar {ad_soyad}!', text: `# Mutlu yıllar!
 
 Sevgili {ad_soyad},
 
@@ -35,7 +35,7 @@ Evlilik yıl dönümünüzü bizimle geçirmeyi seçtiğiniz için teşekkür ed
 
 Sevgilerimizle,
 **{otel} Ailesi**` },
-  { id: 'tr-ozel', name: 'Özel gün (Türkçe)', occ: 'ozel', theme: 'pastel', text: `# Nice güzel günlere!
+  { id: 'tr-ozel', name: 'Özel gün (Türkçe)', occ: 'ozel', theme: 'pastel', subject: '{özel_gün} için en iyi dileklerimizle', text: `# Nice güzel günlere!
 
 Sevgili {ad},
 
@@ -117,9 +117,9 @@ function fitPreviews() {
 }
 
 /* ---------- etkinlik anahtarları ---------- */
-const evKey = (ev) => `${ev.day}_${ev.key}`;
-const findEv = (gid, key, day) => { const g = byId('guests', gid); if (!g) return null; const o = guestOccasions(g).find((x) => x.key === key); return o ? { ...o, g, day } : null; };
-const resolved = (ev) => {
+export const evKey = (ev) => `${ev.day}_${ev.key}`;
+export const findEv = (gid, key, day) => { const g = byId('guests', gid); if (!g) return null; const o = guestOccasions(g).find((x) => x.key === key); return o ? { ...o, g, day } : null; };
+export const resolved = (ev) => {
   const saved = (ev.g.cardTexts || {})[evKey(ev)];
   const tpl = (saved && cardTemplates().find((t) => t.id === saved.tplId)) || defaultFor(ev.type);
   return { tpl, custom: saved && saved.text, ...fillCard(saved && saved.text ? saved.text : tpl.text, ev) };
@@ -135,17 +135,21 @@ async function logPrinted(evs) {
 S.celDay = S.celDay || today();
 A.celMove = (el) => { S.celDay = el.dataset.d === '0' ? today() : addDays(S.celDay, Number(el.dataset.d)); A._renderView(); };
 A.celPick = (el) => { if (el.value) { S.celDay = el.value; A._renderView(); } };
+const celChip = (v, l, n) => `<button class="chip ${(S.f.cel || '') === v ? 'on' : ''}" data-act="filter" data-k="cel" data-v="${v}">${l}<i>${n}</i></button>`;
 V.cel = {
+  headLive: true,
+  chips: () => { const all = occasionsOn(S.celDay); return celChip('', 'Tümü', all.length) + celChip('otel', 'Otelde kalanlar', all.filter((e) => stayOn(e.g, e.day)).length) + celChip('mail', 'E-postası olanlar', all.filter((e) => e.g.email).length) + celChip('bekleyen', 'E-posta gönderilmedi', all.filter((e) => e.g.email && !(e.g.mailLog || {})[evKey(e)]).length); },
   title: () => (S.celDay === today() ? 'Bugünün kutlamaları' : 'Kutlamalar · ' + fmtDateLong(S.celDay)),
   head: () => `<button class="btn" data-act="celMove" data-d="-1" aria-label="Önceki gün">${ic('left')}</button><input type="date" class="inp" style="width:auto" value="${S.celDay}" data-change="celPick" aria-label="Tarih"><button class="btn" data-act="celMove" data-d="1" aria-label="Sonraki gün">${ic('right')}</button>${S.celDay !== today() ? '<button class="btn" data-act="celMove" data-d="0">Bugün</button>' : ''}
-    ${occasionsOn(S.celDay).length ? `<button class="btn" data-act="cardsPrintAll">${ic('printer')} Tüm kartları yazdır</button>` : ''}${can.edit('guests') ? `<button class="btn" data-act="guestImport" title="Excel / CSV listesinden toplu aktar">${ic('upload')}<span class="hide-m"> Excel'den aktar</span></button>` : ''}${can.edit('guests') ? `<button class="btn pri" data-act="celQuick">${ic('plus')} Doğum günü / özel gün ekle</button>` : ''}`,
+    ${occasionsOn(S.celDay).length ? `<button class="btn" data-act="cardsPrintAll">${ic('printer')}<span class="hide-m"> Tüm kartları yazdır</span></button>` : ''}${A._mailAllBtn ? A._mailAllBtn() : ''}${can.edit('guests') ? `<button class="btn" data-act="guestImport" title="Excel / CSV listesinden toplu aktar">${ic('upload')}<span class="hide-m"> Excel'den aktar</span></button>` : ''}${can.edit('guests') ? `<button class="btn pri" data-act="celQuick">${ic('plus')} Doğum günü / özel gün ekle</button>` : ''}`,
   body: () => {
-    const evs = sortBy(occasionsOn(S.celDay), (e) => (stayOn(e.g, S.celDay) ? '0' : '1') + e.g.name);
+    const f = S.f.cel || '';
+    const evs = sortBy(occasionsOn(S.celDay).filter((e) => (f === 'otel' ? !!stayOn(e.g, e.day) : f === 'mail' ? !!e.g.email : f === 'bekleyen' ? (e.g.email && !(e.g.mailLog || {})[evKey(e)]) : true)), (e) => (stayOn(e.g, S.celDay) ? '0' : '1') + e.g.name);
     const row = (ev) => {
       const st = stayOn(ev.g, ev.day); const n = yearsSince(ev.date, ev.day); const log = (ev.g.cardLog || {})[evKey(ev)];
       return `<div class="row"><div class="av terra">${ic('cake')}</div>
-        <button class="t" style="border:0;background:none;text-align:left;padding:0" data-act="open" data-col="guests" data-id="${ev.g.id}"><b>${esc(ev.g.name)}</b><span>${esc([ev.label, n ? (ev.type === 'dogum' ? n + '. yaş' : n + '. yıl') : '', ev.g.phone].filter(Boolean).join(' · '))}</span></button>
-        <div class="r">${st ? `<span class="badge teal">Otelde${st.room ? ' · Oda ' + esc(st.room) : ''}</span>` : '<span class="badge">Otelde değil</span>'}${log ? `<br><span class="badge olive">Kart hazır · ${esc(log.by || '')}</span>` : ''}</div>
+        <button class="t" style="border:0;background:none;text-align:left;padding:0" data-act="open" data-col="guests" data-id="${ev.g.id}"><b>${esc(ev.g.name)}</b><span>${esc([ev.label, n ? (ev.type === 'dogum' ? n + '. yaş' : n + '. yıl') : '', ev.g.email || ev.g.phone].filter(Boolean).join(' · '))}</span></button>
+        <div class="r">${st ? `<span class="badge teal">Otelde${st.room ? ' · Oda ' + esc(st.room) : ''}</span>` : ''}${log ? ` <span class="badge olive">Kart basıldı</span>` : ''}${A._mailState ? A._mailState(ev) : ''}</div>
         <button class="btn sm pri" data-act="cardOpen" data-g="${ev.g.id}" data-k="${ev.key}" data-d="${ev.day}">${ic('cake')} Kart</button></div>`;
     };
     const up = []; for (let i = 1; i <= 7; i++) { const d = addDays(S.celDay, i); occasionsOn(d).forEach((e) => up.push(e)); }
@@ -216,11 +220,14 @@ function renderCard() {
     </div>
     <div class="mf">${cc.tab === 'edit' ? `<button class="btn sp" data-act="cardTab" data-v="view">Vazgeç</button><button class="btn pri" data-act="cardSave">Bu kart için kaydet</button>` : `
       <button class="btn" data-act="cardCopy">${ic('copy')} Metni kopyala</button>
+      ${A._mailBtn ? A._mailBtn(ev) : ''}
       ${ev.g.phone ? `<button class="btn" data-act="cardWa">${ic('wa')} WhatsApp</button>` : ''}
       <button class="btn pri" data-act="cardPrint">${ic('printer')} Yazdır / PDF</button>`}</div></div></div>`;
   fitPreviews();
 }
 A.cardOpen = (el) => openCard(el.dataset.g, el.dataset.k, el.dataset.d);
+A._cardCtx = () => cc;
+A._renderCard = () => { if (cc && $('#modal').innerHTML) renderCard(); };
 A.cardTpl = (el) => { const t = cardTemplates().find((x) => x.id === el.value); if (!t) return; cc.tplId = t.id; cc.text = t.text; renderCard(); };
 A.cardTab = (el) => { if (cc.tab === 'edit' && el.dataset.v === 'view') { const ev = findEv(cc.gid, cc.key, cc.day); const r = resolved(ev); cc.text = r.custom || (cardTemplates().find((t) => t.id === cc.tplId) || r.tpl).text; } cc.tab = el.dataset.v; renderCard(); };
 A.cardSave = async (el) => {
@@ -233,7 +240,7 @@ A.cardReset = () => confirmBox('Bu karttaki özel düzenleme silinip şablon met
   await S.store.save('guests', stamp({ ...g, cardTexts: ct })); const ev = findEv(cc.gid, cc.key, cc.day); const tpl = defaultFor(ev.type);
   cc.custom = false; cc.tplId = tpl.id; cc.text = tpl.text; setTimeout(renderCard, 50);
 });
-const plain = (text) => String(text).replace(/^#\s+/, '').replace(/\*\*(.+?)\*\*/g, '$1');
+export const plain = (text) => String(text).replace(/^#\s+/, '').replace(/\*\*(.+?)\*\*/g, '$1');
 A.cardCopy = () => { const ev = findEv(cc.gid, cc.key, cc.day); copyText(plain(fillCard(cc.text, ev).text)); };
 A.cardWa = () => { const ev = findEv(cc.gid, cc.key, cc.day); window.open(`https://wa.me/${waNum(ev.g.phone)}?text=${encodeURIComponent(String(fillCard(cc.text, ev).text).replace(/^#\s+(.+)$/m, '*$1*').replace(/\*\*(.+?)\*\*/g, '*$1*'))}`, '_blank', 'noopener'); };
 const PRINT_EXTRA = `${CARD_CSS}@page{size:A5 landscape;margin:0}`;
@@ -268,6 +275,7 @@ function openTplEditor(t, isNew) {
         <div class="fld"><label for="ctName">Şablon adı</label><input id="ctName" class="inp" value="${esc(t.name)}"></div>
         <div class="fld half"><label for="ctOcc">Tür</label><select id="ctOcc" class="inp">${Object.entries(OCC).map(([k, l]) => `<option value="${k}" ${t.occ === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         <div class="fld half"><label for="ctTheme">Tasarım</label><select id="ctTheme" class="inp">${Object.entries(THEMES).map(([k, l]) => `<option value="${k}" ${t.theme === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="fld"><label for="ctSubj">E-posta konusu</label><input id="ctSubj" class="inp" value="${esc(t.subject || '')}" placeholder="ör. İyi ki doğdunuz {ad}!"></div>
         <div class="fld"><label for="ctDef">Bu tür için otomatik gelsin mi?</label><select id="ctDef" class="inp"><option value="evet" ${isDef ? 'selected' : ''}>Evet, kartlarda bu şablon otomatik gelsin</option><option value="hayir" ${isDef ? '' : 'selected'}>Hayır, sadece seçilirse</option></select></div>
       </div>
       <label class="muted" for="ctTxt" style="font-size:12.5px;font-weight:600">Kart metni</label>
@@ -285,13 +293,13 @@ function openTplEditor(t, isNew) {
   ['ctTxt', 'ctOcc', 'ctTheme'].forEach((id) => $('#' + id).addEventListener(id === 'ctTxt' ? 'input' : 'change', upd)); upd();
 }
 A.cardTplEdit = (el) => { const t = cardTemplates().find((x) => x.id === el.dataset.id); if (t) openTplEditor(t, false); };
-A.cardTplNew = () => openTplEditor({ id: 'c' + Date.now().toString(36), name: 'Yeni kart', occ: 'dogum', theme: 'zarif', text: DEFAULT_CARDS[0].text }, true);
+A.cardTplNew = () => openTplEditor({ id: 'c' + Date.now().toString(36), name: 'Yeni kart', occ: 'dogum', theme: 'zarif', subject: DEFAULT_CARDS[0].subject, text: DEFAULT_CARDS[0].text }, true);
 A.ctInsert = (el) => { const ta = $('#ctTxt'); const tag = `{${el.dataset.k}}`; const s = ta.selectionStart ?? ta.value.length, e = ta.selectionEnd ?? s; ta.value = ta.value.slice(0, s) + tag + ta.value.slice(e); ta.focus(); ta.selectionStart = ta.selectionEnd = s + tag.length; ta.dispatchEvent(new Event('input')); };
 async function saveCards(cards, defaults) { const { id, ...rest } = S.settings; await S.store.save('settings', { ...rest, id: 'main', cards, cardDefaults: defaults }); }
 A.ctSave = async (el) => {
   const name = $('#ctName').value.trim(); const text = $('#ctTxt').value;
   if (!name || !text.trim()) { toast('Şablon adı ve metni boş olamaz.'); return; }
-  const t = { id: ct.id, name, occ: $('#ctOcc').value, theme: $('#ctTheme').value, text };
+  const t = { id: ct.id, name, occ: $('#ctOcc').value, theme: $('#ctTheme').value, subject: $('#ctSubj').value.trim(), text };
   const list = cardTemplates().slice(); const i = list.findIndex((x) => x.id === t.id); if (i >= 0) list[i] = t; else list.push(t);
   const defs = { ...(S.settings.cardDefaults || {}) };
   if ($('#ctDef').value === 'evet') defs[t.occ] = t.id; else if (defs[t.occ] === t.id) delete defs[t.occ];

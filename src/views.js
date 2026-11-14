@@ -54,6 +54,7 @@ export function refresh() {
     if (S.gate !== 'in' || !$('#view')) return;
     const v = V[S.view] || V.pano;
     const c = $('#view .chips'); if (c && v.chips) c.innerHTML = v.chips();
+    if (v.headLive) { const h = $('#view .head'); if (h) h.innerHTML = `<h1>${esc(v.title())}</h1>${v.head ? v.head() : ''}`; }
     renderBody(); renderSheet();
     const nb = $$('.nav button').find((x) => x.dataset.v === 'tasks');
     if (nb) { const od = overdue().length; const old = $('.badge', nb); if (old) old.remove(); if (od) nb.insertAdjacentHTML('beforeend', `<span class="badge red">${od}</span>`); }
