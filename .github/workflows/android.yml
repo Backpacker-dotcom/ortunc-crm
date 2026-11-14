@@ -1,0 +1,395 @@
+name: APK oluştur
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/android.yml"
+      - "index.html"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "8.10.2"
+      - name: Android projesini hazırla
+        run: |
+          set -e
+          A=build-android
+          J=$A/app/src/main/java/com/backpacker/ortunccrm
+          mkdir -p $A/app/src/main/assets $J $A/app/src/main/res/values $A/app/src/main/res/drawable
+          cp index.html $A/app/src/main/assets/index.html
+          cat > $A/settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+          rootProject.name = "OrtuncCRM"
+          include ':app'
+          EOF
+          cat > $A/build.gradle <<'EOF'
+          plugins { id 'com.android.application' version '8.5.2' apply false }
+          EOF
+          cat > $A/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=false
+          android.nonTransitiveRClass=true
+          EOF
+          cat > $A/app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          def runNo = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+          android {
+              namespace 'com.backpacker.ortunccrm'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.backpacker.ortunccrm'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode runNo
+                  versionName "1.0." + runNo
+              }
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("SIGNING_KEYSTORE"))
+                      storeType 'PKCS12'
+                      storePassword System.getenv("SIGNING_PASS")
+                      keyAlias 'ortunccrm'
+                      keyPassword System.getenv("SIGNING_PASS")
+                  }
+              }
+              buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+              lint { abortOnError false; checkReleaseBuilds false }
+          }
+          EOF
+          cat > $A/app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <application
+                  android:label="Ortunç CRM"
+                  android:icon="@drawable/ic_launcher"
+                  android:roundIcon="@drawable/ic_launcher"
+                  android:allowBackup="false"
+                  android:theme="@style/AppTheme">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          cat > $A/app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+                  <item name="android:statusBarColor">#173F3D</item>
+                  <item name="android:navigationBarColor">#FFFFFF</item>
+                  <item name="android:windowLightNavigationBar">true</item>
+                  <item name="android:windowBackground">#F5F1EA</item>
+              </style>
+          </resources>
+          EOF
+          cat > $A/app/src/main/res/drawable/ic_launcher.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+              <path android:fillColor="#173F3D" android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="9"
+                  android:pathData="M54,54m-21,0a21,21 0,1 1,42 0a21,21 0,1 1,-42 0"/>
+              <path android:fillColor="#C4633A" android:pathData="M54,54m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0"/>
+          </vector>
+          EOF
+          cat > $J/MainActivity.java <<'EOF'
+          package com.backpacker.ortunccrm;
+
+          import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.print.PrintAttributes;
+          import android.print.PrintManager;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          import java.io.ByteArrayInputStream;
+          import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.nio.charset.StandardCharsets;
+          import java.util.Arrays;
+          import java.util.HashMap;
+
+          public class MainActivity extends Activity {
+              static final String HOST = "ortunc-crm.local";
+              static final String START = "https://" + HOST + "/index.html";
+              // Yeni sürüm: depodaki index.html güncellenince uygulama bir sonraki açılışta kendini yeniler
+              static final String[] REMOTE = {
+                      "https://raw.githubusercontent.com/__REPO__/main/index.html",
+                      "https://cdn.jsdelivr.net/gh/__REPO__@main/index.html"
+              };
+              static final int REQ_FILE = 41, REQ_EXPORT = 43, MIN_SIZE = 200000;
+              WebView web, printView;
+              byte[] pendingExport;
+              private ValueCallback<Uri[]> fileCb;
+              private long lastFetch = 0;
+
+              void js(final String code) { runOnUiThread(() -> { if (web != null) web.evaluateJavascript(code, null); }); }
+              void toast(String msg) { js("window.onNativeToast&&window.onNativeToast(" + org.json.JSONObject.quote(msg) + ")"); }
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  web = new WebView(this);
+                  web.setBackgroundColor(0xFFF5F1EA);
+                  setContentView(web);
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setAllowFileAccess(false);
+                  s.setTextZoom(100);
+                  web.addJavascriptInterface(new Bridge(), "Android");
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
+                          if (fileCb != null) fileCb.onReceiveValue(null);
+                          fileCb = cb;
+                          try {
+                              Intent i = new Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
+                              i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel",
+                                      "text/csv", "text/comma-separated-values", "application/octet-stream"});
+                              startActivityForResult(Intent.createChooser(i, "Excel dosyası seç"), REQ_FILE);
+                          } catch (Exception e) {
+                              fileCb = null;
+                              toast("Dosya seçici açılamadı");
+                              return false;
+                          }
+                          return true;
+                      }
+                  });
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
+                          Uri u = req.getUrl();
+                          if (!HOST.equals(u.getHost())) return null;
+                          String path = u.getPath() == null ? "/" : u.getPath();
+                          if (path.equals("/") || path.equals("/index.html")) {
+                              WebResourceResponse r = new WebResourceResponse("text/html", "utf-8", openPage());
+                              HashMap<String, String> h = new HashMap<>();
+                              h.put("Cache-Control", "no-store");
+                              r.setResponseHeaders(h);
+                              return r;
+                          }
+                          return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
+                                  new HashMap<String, String>(), new ByteArrayInputStream(new byte[0]));
+                      }
+
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
+                          Uri u = req.getUrl();
+                          if (HOST.equals(u.getHost())) return false;
+                          try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception e) { toast("Bu bağlantıyı açacak uygulama yok"); }
+                          return true;
+                      }
+                  });
+                  web.loadUrl(START);
+                  new Thread(this::fetchUpdate).start();
+              }
+
+              @Override
+              protected void onActivityResult(int req, int res, Intent data) {
+                  super.onActivityResult(req, res, data);
+                  if (req == REQ_FILE) {
+                      if (fileCb == null) return;
+                      Uri[] r = null;
+                      if (res == RESULT_OK && data != null && data.getData() != null) r = new Uri[]{data.getData()};
+                      fileCb.onReceiveValue(r);
+                      fileCb = null;
+                  } else if (req == REQ_EXPORT) {
+                      boolean ok = false;
+                      if (res == RESULT_OK && data != null && data.getData() != null && pendingExport != null) {
+                          try (OutputStream o = getContentResolver().openOutputStream(data.getData())) { o.write(pendingExport); ok = true; } catch (Exception ignored) { }
+                      }
+                      pendingExport = null;
+                      js("window.onNativeExport&&window.onNativeExport(" + ok + ")");
+                  }
+              }
+
+              class Bridge {
+                  @JavascriptInterface
+                  public void copy(final String text) {
+                      runOnUiThread(() -> {
+                          ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                          if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("Ortunç CRM", text));
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void saveB64(final String name, final String mime, final String b64) {
+                      runOnUiThread(() -> {
+                          try { pendingExport = android.util.Base64.decode(b64, android.util.Base64.DEFAULT); }
+                          catch (Exception e) { toast("Dosya oluşturulamadı"); return; }
+                          Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE, name);
+                          try { startActivityForResult(i, REQ_EXPORT); }
+                          catch (Exception e) { pendingExport = null; toast("Kaydetme ekranı açılamadı"); }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void printHtml(final String name, final String html) {
+                      runOnUiThread(() -> {
+                          WebView v = new WebView(MainActivity.this);
+                          printView = v;
+                          v.getSettings().setJavaScriptEnabled(false);
+                          v.setWebViewClient(new WebViewClient() {
+                              boolean done = false;
+                              @Override
+                              public void onPageFinished(WebView view, String url) {
+                                  if (done) return;
+                                  done = true;
+                                  view.postDelayed(() -> {
+                                      try {
+                                          PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+                                          String job = (name == null || name.isEmpty()) ? "Ortunc-Teklif" : name;
+                                          PrintAttributes a4 = new PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                                                  .setMinMargins(PrintAttributes.Margins.NO_MARGINS).build();
+                                          pm.print(job, view.createPrintDocumentAdapter(job), a4);
+                                      } catch (Exception e) { toast("Yazdırma açılamadı"); }
+                                  }, 350);
+                              }
+                          });
+                          v.loadDataWithBaseURL("https://print.local/", html, "text/html", "utf-8", null);
+                      });
+                  }
+              }
+
+              private InputStream openPage() {
+                  try {
+                      File f = new File(getFilesDir(), "index.html");
+                      if (f.exists() && f.length() > MIN_SIZE) return new FileInputStream(f);
+                      return getAssets().open("index.html");
+                  } catch (Exception e) {
+                      return new ByteArrayInputStream("<p style=\"font-family:sans-serif;padding:24px\">Sayfa açılamadı.</p>".getBytes(StandardCharsets.UTF_8));
+                  }
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  if (System.currentTimeMillis() - lastFetch > 600000) new Thread(this::fetchUpdate).start();
+              }
+
+              // İndirilen sürüm bir sonraki açılışta devreye girer; açık formu bozmamak için sayfa zorla yenilenmez
+              private synchronized void fetchUpdate() {
+                  lastFetch = System.currentTimeMillis();
+                  for (String src : REMOTE) {
+                      try {
+                          HttpURLConnection c = (HttpURLConnection) new URL(src + "?t=" + System.currentTimeMillis()).openConnection();
+                          c.setConnectTimeout(10000);
+                          c.setReadTimeout(40000);
+                          c.setUseCaches(false);
+                          if (c.getResponseCode() != 200) { c.disconnect(); continue; }
+                          InputStream in = c.getInputStream();
+                          ByteArrayOutputStream out = new ByteArrayOutputStream();
+                          byte[] buf = new byte[16384];
+                          int n;
+                          while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                          in.close();
+                          c.disconnect();
+                          byte[] data = out.toByteArray();
+                          String txt = new String(data, StandardCharsets.UTF_8);
+                          if (data.length < MIN_SIZE || !txt.contains("<title>Ortunç CRM</title>") || !txt.trim().endsWith("</html>")) continue;
+                          File cur = new File(getFilesDir(), "index.html");
+                          if (cur.exists() && cur.length() == data.length) {
+                              byte[] old = new byte[(int) cur.length()];
+                              FileInputStream fi = new FileInputStream(cur);
+                              int off = 0, r;
+                              while (off < old.length && (r = fi.read(old, off, old.length - off)) > 0) off += r;
+                              fi.close();
+                              if (Arrays.equals(old, data)) return;
+                          }
+                          File tmp = new File(getFilesDir(), "index.tmp");
+                          FileOutputStream fo = new FileOutputStream(tmp);
+                          fo.write(data);
+                          fo.close();
+                          File dst = new File(getFilesDir(), "index.html");
+                          if (!tmp.renameTo(dst)) { dst.delete(); tmp.renameTo(dst); }
+                          return;
+                      } catch (Exception ignored) { }
+                  }
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (web == null) { super.onBackPressed(); return; }
+                  web.evaluateJavascript("!!(window.crmBack&&window.crmBack())", v -> {
+                      if (!"true".equals(v)) moveTaskToBack(true);
+                  });
+              }
+          }
+          EOF
+          sed -i "s#__REPO__#${GITHUB_REPOSITORY}#g" $J/MainActivity.java
+      - name: İmza anahtarı
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+        run: |
+          # Tercih edilen: depo gizli değişkenleri (KEYSTORE_B64, KEYSTORE_PASS). Yoksa depodaki release.keystore kullanılır.
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "SIGNING_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+            echo "SIGNING_PASS=$KEYSTORE_PASS" >> "$GITHUB_ENV"
+          else
+            if [ ! -f release.keystore ]; then
+              keytool -genkeypair -keystore release.keystore -storetype PKCS12 -alias ortunccrm -keyalg RSA -keysize 2048 -validity 10000 -storepass ortunccrm -keypass ortunccrm -dname "CN=Ortunc CRM, O=Backpacker, C=TR"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add release.keystore
+              git commit -m "İmza anahtarı [skip ci]"
+              git push origin HEAD:main || true
+            fi
+            echo "SIGNING_KEYSTORE=$GITHUB_WORKSPACE/release.keystore" >> "$GITHUB_ENV"
+            echo "SIGNING_PASS=ortunccrm" >> "$GITHUB_ENV"
+          fi
+      - name: APK derle
+        working-directory: build-android
+        run: gradle --no-daemon assembleRelease
+      - run: cp build-android/app/build/outputs/apk/release/app-release.apk OrtuncCRM.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Ortunç CRM 1.0.${{ github.run_number }}
+          make_latest: true
+          files: OrtuncCRM.apk
+          body: Telefona kurmak için OrtuncCRM.apk dosyasını indirip açın.

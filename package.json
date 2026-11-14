@@ -1,0 +1,20 @@
+{
+  "name": "ortunc-crm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "firebase": "^13.3.0",
+    "lucide": "^1.73.0",
+    "xlsx": "^0.18.5"
+  },
+  "type": "module",
+  "private": true
+}
