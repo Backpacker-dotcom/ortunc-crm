@@ -21,8 +21,8 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 export const ACC_TYPES = { acente: 'Acente', operator: 'Tur operatörü', ota: 'Online kanal (OTA)', kurumsal: 'Kurumsal firma', diger: 'Diğer' };
 export const ACC_STATUS = { aktif: 'Aktif', potansiyel: 'Potansiyel', pasif: 'Pasif' };
 export const OPP_KINDS = { grup: 'Grup konaklama', toplanti: 'Toplantı / seminer', yemek: 'Yemek organizasyonu', etkinlik: 'Özel etkinlik' };
-export const OPP_STAGES = [['talep', 'Talep'], ['teklif', 'Teklif verildi'], ['gorusme', 'Görüşme'], ['opsiyon', 'Opsiyon'], ['kazanildi', 'Kesinleşti'], ['kaybedildi', 'Kaybedildi']];
-export const WED_STAGES = [['talep', 'Talep'], ['teklif', 'Teklif verildi'], ['gezi', 'Mekân gezisi'], ['opsiyon', 'Opsiyon'], ['sozlesme', 'Sözleşme'], ['kaybedildi', 'Kaybedildi']];
+export const OPP_STAGES = [['talep', 'Talep'], ['teklif', 'Teklif hazırla'], ['gorusme', 'Görüşme'], ['opsiyon', 'Opsiyon'], ['kazanildi', 'Kesinleşti'], ['kaybedildi', 'Kaybedildi']];
+export const WED_STAGES = [['talep', 'Talep'], ['teklif', 'Teklif hazırla'], ['gezi', 'Mekân gezisi'], ['opsiyon', 'Opsiyon'], ['sozlesme', 'Sözleşme'], ['kaybedildi', 'Kaybedildi']];
 export const ACT_TYPES = { ziyaret: 'Satış ziyareti', telefon: 'Telefon', eposta: 'E-posta', toplanti: 'Toplantı', fuar: 'Fuar', not: 'Not' };
 export const ACT_ICON = { ziyaret: 'briefcase', telefon: 'phone', eposta: 'mail', toplanti: 'meeting', fuar: 'flag', not: 'note' };
 export const ROLES = { yonetici: 'Yönetici', satis: 'Satış', onburo: 'Ön büro', izleyici: 'İzleyici' };

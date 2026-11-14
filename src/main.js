@@ -209,7 +209,7 @@ document.addEventListener('change', (ev) => {
 });
 document.addEventListener('input', (ev) => { if (ev.target.matches && ev.target.matches('[data-search]')) { S.q = ev.target.value; renderBody(); } });
 document.addEventListener('submit', (ev) => { if (ev.target.id === 'gForm') { ev.preventDefault(); gateSubmit(ev.target); } });
-document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') window.crmBack(); });
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') window.crmBack(); else if (ev.key === 'Enter' && ev.target.matches && ev.target.matches('div[role=button][data-act]')) ev.target.click(); });
 // Kanban sürükle-bırak
 let dragId = null;
 document.addEventListener('dragstart', (ev) => { const k = ev.target.closest && ev.target.closest('.kc'); if (k) { dragId = k.dataset.id; ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', dragId); } catch (e) { /* yok */ } } });

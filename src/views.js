@@ -90,7 +90,7 @@ A.setStage = async (el) => {
       fields: [{ k: 'lossReason', label: 'Neden kaybedildi?', ph: 'ör. Fiyat, tarih dolu, rakip mekân, vazgeçti' }], onSave: (v) => apply(v) });
     refresh(); return;
   }
-  try { await apply(); } catch (e) { toast(errText(e)); refresh(); }
+  try { await apply(); if (st === 'teklif' && A.offer) setTimeout(() => A.offer({ dataset: { col, id: r.id } }), 120); } catch (e) { toast(errText(e)); refresh(); }
 };
 
 
@@ -214,10 +214,11 @@ V.opps = {
     const list = LIST.opps();
     const ed = can.edit('opps');
     return `<div class="kanban">${OPP_STAGES.map(([k, l]) => { const li = sortBy(list.filter((o) => o.stage === k), (o) => o.start || '9999'); return `<div class="col" data-stage="${k}"><h4>${l} <span>${li.length} · ${moneyMap(sumByCur(li, (o) => num(o.value)))}</span></h4>
-      ${li.map((o) => { const acc = byId('accounts', o.accountId); return `<button class="kc" ${ed ? 'draggable="true"' : ''} data-act="open" data-col="opps" data-id="${o.id}"><b>${esc(o.title)}</b><span>${esc([acc && acc.name, OPP_KINDS[o.kind]].filter(Boolean).join(' · '))}</span>
+      ${li.map((o) => { const acc = byId('accounts', o.accountId); return `<div class="kc" role="button" tabindex="0" ${ed ? 'draggable="true"' : ''} data-act="open" data-col="opps" data-id="${o.id}"><b>${esc(o.title)}</b><span>${esc([acc && acc.name, OPP_KINDS[o.kind]].filter(Boolean).join(' · '))}</span>
         <span>${esc([fmtRange(o.start, o.end), o.pax ? o.pax + ' kişi' : '', o.rooms ? o.rooms + ' oda' : ''].filter(Boolean).join(' · '))}</span>
-        <div class="f"><b>${o.value ? money(o.value, o.currency) : ''}</b><span>${esc(userName(o.ownerId))}</span></div></button>`; }).join('') || '<div class="muted" style="font-size:13px;padding:4px">—</div>'}</div>`; }).join('')}</div>
-      ${ed ? '<p class="muted" style="font-size:13px">Bilgisayarda kartı sürükleyerek, telefonda kartı açıp aşama seçerek ilerletebilirsiniz.</p>' : ''}`;
+        <div class="f"><b>${o.value ? money(o.value, o.currency) : ''}</b><span>${esc(userName(o.ownerId))}</span></div>
+        ${k === 'teklif' ? `<div class="kact">${o.offerSentAt ? `<span class="badge olive">Gönderildi ${fmtDate(iso(new Date(o.offerSentAt)))}</span>` : ''}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} ${o.offerSentAt ? 'Teklifi aç' : 'Teklif hazırla'}</button></div>` : ''}</div>`; }).join('') || '<div class="muted" style="font-size:13px;padding:4px">—</div>'}</div>`; }).join('')}</div>
+      ${ed ? '<p class="muted" style="font-size:13px">Bilgisayarda kartı sürükleyerek, telefonda kartı açıp aşama seçerek ilerletebilirsiniz. Kart <b>Teklif hazırla</b> sütununa gelince teklif ekranı açılır.</p>' : ''}`;
   },
 };
 
@@ -235,7 +236,7 @@ V.weddings = {
     const tot = sumByCur(list.filter((w) => w.stage !== 'kaybedildi'), wedTotal);
     return `<p class="muted" style="margin:0 0 10px">${list.length} teklif · kaybedilenler hariç toplam ${moneyMap(tot)}</p><div class="card list">${list.map((w) => `<button class="row" data-act="open" data-col="weddings" data-id="${w.id}">${dateBox(w.date)}
       <div class="t"><b>${esc(w.couple)}</b><span>${esc([w.venue, w.guests ? w.guests + ' davetli' : '', userName(w.ownerId)].filter(Boolean).join(' · '))}</span></div>
-      <div class="r"><b>${money(wedTotal(w), w.currency)}</b>${badge(WED_STAGES, w.stage)}${wedConflicts(w).length ? '<br><span class="badge red">Tarih çakışıyor</span>' : ''}</div></button>`).join('')}</div>`;
+      <div class="r"><b>${money(wedTotal(w), w.currency)}</b>${badge(WED_STAGES, w.stage)}${w.stage === 'teklif' && w.offerSentAt ? ' <span class="badge olive">Gönderildi</span>' : ''}${wedConflicts(w).length ? '<br><span class="badge red">Tarih çakışıyor</span>' : ''}</div></button>`).join('')}</div>`;
   },
 };
 

@@ -229,7 +229,7 @@ export function renderOffer() {
   const missing = miss.filter((k) => !k.startsWith('otel')).map(lbl), missHotel = miss.filter((k) => k.startsWith('otel')).map(lbl);
   const phone = r.phone;
   const email = col === 'weddings' ? r.email : ((byId('accounts', r.accountId) || {}).email || '');
-  $('#modal').innerHTML = `<div class="ov center"><div class="modal" style="width:min(820px,100%)"><div class="mh"><h2>Teklif · ${esc(recTitle(col, r))}</h2><button class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div>
+  $('#modal').innerHTML = `<div class="ov center"><div class="modal" style="width:min(820px,100%)"><div class="mh"><h2>Teklif hazırla · ${esc(recTitle(col, r))}</h2><button class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div>
     <div class="mb">
       ${missing.length ? `<div class="banner" style="margin-bottom:12px">${ic('warn')}<span>Eksik bilgi: <b>${esc(missing.join(', '))}</b>. Metinde <span style="color:var(--danger)">……</span> olarak görünüyor.</span>${ed ? `<button class="btn sm" data-act="offerEditRec">Kaydı tamamla</button>` : ''}</div>` : ''}
       ${missHotel.length ? `<div class="banner" style="margin-bottom:12px">${ic('warn')}<span>Otel bilgisi eksik: <b>${esc(missHotel.join(', '))}</b>. Ayarlar › Otel bilgileri'nden bir kez girilir.</span></div>` : ''}
@@ -241,7 +241,7 @@ export function renderOffer() {
     </div>
     <div class="mf">
       ${cur.tab === 'edit' ? `<button class="btn sp" data-act="offerTab" data-v="view">Vazgeç</button><button class="btn pri" data-act="offerSaveText">Bu teklif için kaydet</button>` : `
-      ${ed && r.stage === 'talep' ? '<button class="btn sp" data-act="offerSent">Gönderildi olarak işaretle</button>' : ''}
+      ${ed && !r.offerSentAt && ['talep', 'teklif'].includes(r.stage) ? '<button class="btn sp" data-act="offerSent">Gönderildi olarak işaretle</button>' : r.offerSentAt ? `<span class="badge olive sp" style="align-self:center">Gönderildi ${fmtDate(new Date(r.offerSentAt).toISOString().slice(0, 10))}</span>` : ''}
       <button class="btn" data-act="offerWord">${ic('download')} Word</button>
       <button class="btn" data-act="offerPrint">${ic('printer')} Yazdır / PDF</button>
       <button class="btn" data-act="offerCopy">${ic('copy')} Kopyala</button>
@@ -279,9 +279,10 @@ A.offerWord = async (el) => {
 A.offerSent = async () => {
   const r = curRec(); const { col } = cur;
   try {
-    await S.store.save(col, stamp({ ...r, stage: 'teklif', stageAt: Date.now() }));
+    const stg = r.stage === 'talep' ? { stage: 'teklif', stageAt: Date.now() } : {};
+    await S.store.save(col, stamp({ ...r, ...stg, offerSentAt: Date.now() }));
     await S.store.save('activities', stamp({ ref: { col, id: r.id }, refName: recTitle(col, r), type: 'eposta', date: today(), subject: 'Teklif gönderildi', note: '', userId: S.user.uid, userName: S.user.name }));
-    toast('Aşama "Teklif verildi" yapıldı'); setTimeout(renderOffer, 50);
+    toast('Teklif gönderildi olarak kaydedildi'); setTimeout(renderOffer, 50);
   } catch (e) { toast(errText(e)); }
 };
 

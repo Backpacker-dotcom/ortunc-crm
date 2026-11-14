@@ -223,3 +223,7 @@ pre.code{background:#1D2A2A;color:#DCE9E6;border-radius:10px;padding:12px;font-s
 @media print{body{background:#fff}}
 
 @media (max-width:900px){.hide-m{display:none}}
+.kc{cursor:pointer}.kc:focus-visible{outline:2px solid var(--primary)}
+.kc .kact{display:flex;gap:6px;align-items:center;justify-content:space-between;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);flex-wrap:wrap}
+.kc .kact .btn{margin-left:auto}
+.mf .badge.sp{margin-right:auto}
