@@ -20,7 +20,7 @@ export function newId() {
 
 function clean(o) {
   // Firestore undefined kabul etmez
-  return JSON.parse(JSON.stringify(o, (k, v) => (v === undefined ? null : v)));
+  return JSON.parse(JSON.stringify(o, (k, v) => (v === undefined ? null : (k && k[0] === '_' ? undefined : v))));
 }
 
 /* ---------------- Yerel sürücü ---------------- */

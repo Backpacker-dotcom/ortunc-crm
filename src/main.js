@@ -12,6 +12,8 @@ import { cardsSettingsCard, guestOccCard } from './cards.js';
 import { blBanner, blBadge, blSheet, BL_REASONS } from './blacklist.js';
 import { handleGuestFile } from './guestimport.js';
 import { mailSettingsCard } from './mail.js';
+import { revCard, revBadge } from './revisions.js';
+A._revCard = revCard; A._revBadge = revBadge;
 import { saveFile } from './print.js';
 A._saveFile = saveFile;
 A._blBanner = blBanner; A._blBadge = blBadge; A._sheets = { blacklist: blSheet }; A._BL = BL_REASONS;

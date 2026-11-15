@@ -212,10 +212,10 @@ V.opps = {
     const list = LIST.opps();
     const ed = can.edit('opps');
     return `<div class="kanban">${OPP_STAGES.map(([k, l]) => { const li = sortBy(list.filter((o) => o.stage === k), (o) => o.start || '9999'); return `<div class="col" data-stage="${k}"><h4>${l} <span>${li.length} · ${moneyMap(sumByCur(li, (o) => num(o.value)))}</span></h4>
-      ${li.map((o) => { const acc = byId('accounts', o.accountId); return `<div class="kc" role="button" tabindex="0" ${ed ? 'draggable="true"' : ''} data-act="open" data-col="opps" data-id="${o.id}"><b>${esc(o.title)}</b><span>${esc([acc && acc.name, OPP_KINDS[o.kind]].filter(Boolean).join(' · '))}</span>
+      ${li.map((o) => { const acc = byId('accounts', o.accountId); return `<div class="kc" role="button" tabindex="0" ${ed ? 'draggable="true"' : ''} data-act="open" data-col="opps" data-id="${o.id}"><b>${esc(o.title)}${A._revBadge ? A._revBadge(o) : ''}</b><span>${esc([acc && acc.name, OPP_KINDS[o.kind]].filter(Boolean).join(' · '))}</span>
         <span>${esc([fmtRange(o.start, o.end), o.pax ? o.pax + ' kişi' : '', o.rooms ? o.rooms + ' oda' : ''].filter(Boolean).join(' · '))}</span>
         <div class="f"><b>${o.value ? money(o.value, o.currency) : ''}</b><span>${esc(userName(o.ownerId))}</span></div>
-        ${k === 'teklif' ? `<div class="kact">${o.offerSentAt ? `<span class="badge olive">Gönderildi ${fmtDate(iso(new Date(o.offerSentAt)))}</span>` : ''}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} ${o.offerSentAt ? 'Teklifi aç' : 'Teklif hazırla'}</button></div>` : ''}</div>`; }).join('') || '<div class="muted" style="font-size:13px;padding:4px">—</div>'}</div>`; }).join('')}</div>
+        ${k === 'teklif' ? `<div class="kact">${o.offerSentAt ? `<span class="badge olive">Gönderildi ${fmtDate(iso(new Date(o.offerSentAt)))}</span>` : ''}${ed ? `<button class="btn sm" data-act="revise" data-col="opps" data-id="${o.id}">Revize</button>` : ''}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} ${o.offerSentAt ? 'Teklifi aç' : 'Teklif hazırla'}</button></div>` : ''}</div>`; }).join('') || '<div class="muted" style="font-size:13px;padding:4px">—</div>'}</div>`; }).join('')}</div>
       ${ed ? '<p class="muted" style="font-size:13px">Bilgisayarda kartı sürükleyerek, telefonda kartı açıp aşama seçerek ilerletebilirsiniz. Kart <b>Teklif hazırla</b> sütununa gelince teklif ekranı açılır.</p>' : ''}`;
   },
 };
@@ -233,7 +233,7 @@ V.weddings = {
     if (!list.length) return empty('Sonuç yok', 'Arama ya da filtreyi değiştirin.');
     const tot = {}; list.filter((w) => w.stage !== 'kaybedildi').forEach((w) => Object.entries(recTotals('weddings', w)).forEach(([k, v]) => { tot[k] = (tot[k] || 0) + v; }));
     return `<p class="muted" style="margin:0 0 10px">${list.length} teklif · kaybedilenler hariç toplam ${moneyMap(tot)}</p><div class="card list">${list.map((w) => `<button class="row" data-act="open" data-col="weddings" data-id="${w.id}">${dateBox(w.date)}
-      <div class="t"><b>${esc(w.couple)}${A._blBadge ? A._blBadge('weddings', w) : ''}</b><span>${esc([w.venue, w.guests ? w.guests + ' davetli' : '', userName(w.ownerId)].filter(Boolean).join(' · '))}</span></div>
+      <div class="t"><b>${esc(w.couple)}${A._blBadge ? A._blBadge('weddings', w) : ''}${A._revBadge ? A._revBadge(w) : ''}</b><span>${esc([w.venue, w.guests ? w.guests + ' davetli' : '', userName(w.ownerId)].filter(Boolean).join(' · '))}</span></div>
       <div class="r"><b>${moneyMap(recTotals('weddings', w))}</b>${badge(WED_STAGES, w.stage)}${w.stage === 'teklif' && w.offerSentAt ? ' <span class="badge olive">Gönderildi</span>' : ''}${wedConflicts(w).length ? '<br><span class="badge red">Tarih çakışıyor</span>' : ''}</div></button>`).join('')}</div>`;
   },
 };
@@ -328,7 +328,8 @@ const SHEETS = {
       <div class="acts">${contactBtns(o.phone, acc && acc.email)}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} Teklif</button></div>
       <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
       ${o.program ? `<div class="card pad"><h3>Program / menü</h3><div style="white-space:pre-wrap">${esc(o.program)}</div></div>` : ''}
-      <div class="card pad"><h3>Fiyat</h3>${priceTable('opps', o)}${num(o.deposit) || num(o.depositPaid) ? `<table class="tb" style="margin-top:8px">${num(o.deposit) ? `<tr><td>İstenen ön ödeme</td><td class="n">${money(num(o.deposit), o.currency)}</td></tr>` : ''}${num(o.depositPaid) ? `<tr><td>Alınan</td><td class="n">${money(num(o.depositPaid), o.currency)}</td></tr><tr><td><b>Kalan</b></td><td class="n"><b>${money(Math.max(0, num(o.value) - num(o.depositPaid)), o.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
+      ${A._revCard ? A._revCard('opps', o) : ''}
+      <div class="card pad"><h3>Fiyat${(o.revisions || []).length ? ` · Rev. ${(o.revisions || []).length + 1}` : ''}</h3>${priceTable('opps', o)}${num(o.deposit) || num(o.depositPaid) ? `<table class="tb" style="margin-top:8px">${num(o.deposit) ? `<tr><td>İstenen ön ödeme</td><td class="n">${money(num(o.deposit), o.currency)}</td></tr>` : ''}${num(o.depositPaid) ? `<tr><td>Alınan</td><td class="n">${money(num(o.depositPaid), o.currency)}</td></tr><tr><td><b>Kalan</b></td><td class="n"><b>${money(Math.max(0, num(o.value) - num(o.depositPaid)), o.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
       ${A._filesCard ? A._filesCard('opps', o.id) : ''}
       ${relBlocks('opps', o.id)}${foot(o)}` };
   },
@@ -339,7 +340,8 @@ const SHEETS = {
       <div class="acts" style="align-items:center">${stageSel('weddings', w, WED_STAGES)}<span class="badge terra">${esc(w.eventType || 'Düğün')}</span></div>
       <div class="acts">${contactBtns(w.phone, w.email)}<button class="btn sm pri" data-act="offer" data-col="weddings" data-id="${w.id}">${ic('note')} Teklif</button></div>
       <div class="card pad"><h3>Organizasyon</h3>${dl([['Tarih', w.date ? fmtDateLong(w.date) : ''], ['Mekân', w.venue], ['Davetli', w.guests], ['Menü / paket', w.menu], ['Telefon', w.phone], ['E-posta', w.email], ['Kaynak', w.source], ['Sorumlu', userName(w.ownerId)], ['Geçerlilik', fmtDate(w.validUntil)], ['Kayıp nedeni', w.stage === 'kaybedildi' ? w.lossReason : ''], ['Notlar', w.notes]])}</div>
-      <div class="card pad"><h3>Fiyat</h3>${priceTable('weddings', w)}
+      ${A._revCard ? A._revCard('weddings', w) : ''}
+      <div class="card pad"><h3>Fiyat${(w.revisions || []).length ? ` · Rev. ${(w.revisions || []).length + 1}` : ''}</h3>${priceTable('weddings', w)}
         ${num(w.deposit) || paid ? `<table class="tb" style="margin-top:8px">${num(w.deposit) ? `<tr><td>İstenen kapora</td><td class="n">${money(num(w.deposit), w.currency)}</td></tr>` : ''}${paid ? `<tr><td>Alınan kapora</td><td class="n">${money(paid, w.currency)}</td></tr><tr><td><b>Kalan</b> (${esc(w.currency || 'TRY')})</td><td class="n"><b>${money(Math.max(0, tot - paid), w.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
       ${A._filesCard ? A._filesCard('weddings', w.id) : ''}
       ${relBlocks('weddings', w.id)}${foot(w)}` };

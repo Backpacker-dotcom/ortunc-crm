@@ -62,7 +62,7 @@ export const fmtRange = (a, b) => (a && b && a !== b ? `${fmtDate(a)} – ${fmtD
 export const fmtTs = (t) => (t ? fmtDate(iso(new Date(t))) : '');
 export const num = (v) => { const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(/\./g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 export const fmtNum = (n) => new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 }).format(Math.round(n || 0));
-export const money = (n, cur = 'TRY') => `${CUR_SYM[cur] || ''}${fmtNum(n)}`;
+export const money = (n, cur = 'TRY') => `${Math.round(n || 0) < 0 ? '−' : ''}${CUR_SYM[cur] || ''}${fmtNum(Math.abs(n || 0))}`;
 export const sumByCur = (list, valFn) => {
   const m = {};
   list.forEach((x) => { const v = valFn(x); if (v) m[x.currency || 'TRY'] = (m[x.currency || 'TRY'] || 0) + v; });
@@ -161,6 +161,10 @@ export function calcItems(items, fallbackQty) {
 export const recCalc = (col, r) => calcItems(itemsOf(col, r), col === 'weddings' ? r.guests : 1);
 export const recTotals = (col, r) => { const c = recCalc(col, r); return Object.fromEntries(c.curs.map((k) => [k, c.by[k].gross])); };
 // Teklif tablosu için satırlar (tüm çıktılar bunu kullanır)
+// Revizyonlar: r.revisions = [{ no, at, by, note, items, deposit, guests, pax, rooms, start, end, date, validUntil, totals }]
+export const revNo = (r) => ((r && r.revisions) || []).length + 1;
+export const prevRev = (r) => { const l = (r && r.revisions) || []; return l.length ? l[l.length - 1] : null; };
+export const revRec = (r, rv) => ({ ...r, items: rv.items, deposit: rv.deposit, guests: rv.guests ?? r.guests, pax: rv.pax ?? r.pax, rooms: rv.rooms ?? r.rooms, currency: rv.currency || r.currency });
 export function priceRows(col, r) {
   const c = recCalc(col, r);
   const taxNote = (l) => { const t = []; if (l.kdvR) t.push(`KDV %${l.kdvR}`); if (l.kvR) t.push(`Konaklama V. %${l.kvR}`); return t.length ? `${t.join(' + ')} ${l.mode === 'ekle' ? 'hariç' : 'dahil'}` : ''; };
@@ -179,6 +183,8 @@ export function priceRows(col, r) {
   });
   const after = [];
   if (num(r.deposit)) after.push([col === 'weddings' ? 'Rezervasyon için kapora' : 'Opsiyon için ön ödeme', money(num(r.deposit), r.currency || c.main)]);
+  const pv = r._showPrev ? prevRev(r) : null;
+  if (pv) { const t = recTotals(col, revRec(r, pv)); after.unshift([`Önceki teklif (Rev. ${pv.no} · ${fmtDate(iso(new Date(pv.at)))})`, moneyMap(t), 'old']); }
   return { rows, sums, totals, foot, after, total: totals[0] || ['Toplam', money(0)] };
 }
 export const taxNoteText = (col, r) => {

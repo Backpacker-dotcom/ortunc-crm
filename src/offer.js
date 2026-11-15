@@ -3,7 +3,7 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle } from 'docx';
 import {
   S, A, $, esc, ic, OPP_KINDS, today, fmtDate, fmtDateLong, money, num, fmtNum, byId, userName, wedTotal, toast, errText, stamp,
-  copyText, digits, can, confirmBox, closeModal, recTitle, MONTHS, priceRows, recCalc, recTotals, moneyMap, taxNoteText,
+  copyText, digits, can, confirmBox, closeModal, recTitle, MONTHS, priceRows, recCalc, recTotals, moneyMap, taxNoteText, revNo, prevRev,
 } from './core.js';
 import { saveFile, printHtml } from './print.js';
 
@@ -93,7 +93,8 @@ Saygılarımızla,
 **{sorumlu}**
 {otel} · {otel_telefon}`,
 };
-export const TITLE = { weddings: (w) => `${w.eventType || 'Düğün'} Teklifi`, opps: () => 'Teklif' };
+const revSuf = (r) => ((r.revisions || []).length ? ` · Revize ${revNo(r) - 1}` : '');
+export const TITLE = { weddings: (w) => `${w.eventType || 'Düğün'} Teklifi${revSuf(w)}`, opps: (o) => `Teklif${revSuf(o)}` };
 export const template = (col) => (S.settings.templates && S.settings.templates[col]) || DEFAULT_TPL[col];
 
 /* ---------- doldurma ---------- */
@@ -135,12 +136,12 @@ export const OFFER_CSS = `.offer{font-family:Georgia,"Times New Roman",serif;col
 .offer table{width:100%;border-collapse:collapse;margin:6px 0 18px;font:13.5px/1.4 Arial,sans-serif}
 .offer th{background:#e3efec;text-align:left;padding:8px 10px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:#1e5e5a}
 .offer td{padding:8px 10px;border-bottom:1px solid #e3dcd0}.offer td:last-child,.offer th:last-child{text-align:right;white-space:nowrap}
-.offer tr.t td{border-top:2px solid #1d2a2a;border-bottom:0;font-weight:700;font-size:15px}.offer tr.s td{color:#555;border-bottom:0;padding-top:4px;padding-bottom:4px;font-size:13px}.offer tr.s0 td{border-top:1px solid #c9c0b0;padding-top:9px}.offer tr.t+tr.s0 td{padding-top:14px}.offer tr.a td{color:#555;border-bottom:0}
+.offer tr.t td{border-top:2px solid #1d2a2a;border-bottom:0;font-weight:700;font-size:15px}.offer tr.s td{color:#555;border-bottom:0;padding-top:4px;padding-bottom:4px;font-size:13px}.offer tr.s0 td{border-top:1px solid #c9c0b0;padding-top:9px}.offer tr.t+tr.s0 td{padding-top:14px}.offer tr.old td{color:#9a6b5a;font-style:italic}.offer tr.a td{color:#555;border-bottom:0}
 @media screen and (max-width:560px){.offer{padding:18px 16px;font-size:14px}.offer h1{font-size:21px}}
 @media print{.offer .gap{background:none;color:inherit}}`;
 function tableHtml(col, r) {
   const p = priceRows(col, r);
-  return `<table><tr><th>Hizmet</th><th>Tutar</th></tr>${p.rows.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}${p.foot.map(([a, b, k]) => `<tr class="${k === 't' ? 't' : k === 's0' ? 's s0' : 's'}"><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}${p.after.map(([a, b]) => `<tr class="a"><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table>`;
+  return `<table><tr><th>Hizmet</th><th>Tutar</th></tr>${p.rows.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}${p.foot.map(([a, b, k]) => `<tr class="${k === 't' ? 't' : k === 's0' ? 's s0' : 's'}"><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}${p.after.map(([a, b, k]) => `<tr class="a${k === 'old' ? ' old' : ''}"><td>${esc(a)}</td><td>${k === 'old' ? `<s>${esc(b)}</s>` : esc(b)}</td></tr>`).join('')}</table>`;
 }
 export function offerHtml(col, r, text) {
   const st = S.settings;
@@ -205,12 +206,12 @@ export async function offerDocx(col, r, text) {
 /* ---------- teklif penceresi ---------- */
 let cur = null; // { col, id, text, tab }
 const fileBase = (col, r) => `Teklif-${recTitle(col, r).replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '')}`;
-const curRec = () => (cur ? byId(cur.col, cur.id) : null);
+const curRec = () => { const r = cur ? byId(cur.col, cur.id) : null; return r && cur.showPrev && prevRev(r) ? { ...r, _showPrev: true } : r; };
 function currentText(col, r) { return r.offerText ? r.offerText : fill(col, r).text; }
 
 export function openOffer(col, id) {
   const r = byId(col, id); if (!r) return;
-  cur = { col, id, text: currentText(col, r), tab: 'view' };
+  cur = { col, id, text: currentText(col, r), tab: 'view', showPrev: !!prevRev(r) };
   renderOffer();
 }
 export function renderOffer() {
@@ -226,6 +227,7 @@ export function renderOffer() {
       ${missing.length ? `<div class="banner" style="margin-bottom:12px">${ic('warn')}<span>Eksik bilgi: <b>${esc(missing.join(', '))}</b>. Metinde <span style="color:var(--danger)">……</span> olarak görünüyor.</span>${ed ? `<button class="btn sm" data-act="offerEditRec">Kaydı tamamla</button>` : ''}</div>` : ''}
       ${missHotel.length ? `<div class="banner" style="margin-bottom:12px">${ic('warn')}<span>Otel bilgisi eksik: <b>${esc(missHotel.join(', '))}</b>. Ayarlar › Otel bilgileri'nden bir kez girilir.</span></div>` : ''}
       ${r.offerText ? `<div class="banner" style="margin-bottom:12px;background:var(--primary-soft);border-color:#c6dcd7;color:var(--primary)"><span>Bu teklif için metin elle düzenlendi; şablondaki değişiklikler buna yansımaz. Fiyat tablosu her zaman güncel fiyatla çizilir.</span>${ed ? '<button class="btn sm" data-act="offerReset">Şablondan yeniden oluştur</button>' : ''}</div>` : ''}
+      ${prevRev(r) ? `<div class="banner" style="margin-bottom:10px;background:var(--gold-soft)"><span><b>Revize ${revNo(r) - 1}</b> · önceki teklif: <s>${esc(moneyMap(recTotals(col, { ...r, items: prevRev(r).items, deposit: prevRev(r).deposit, guests: prevRev(r).guests ?? r.guests })))}</s> → yeni: <b>${esc(moneyMap(recTotals(col, r)))}</b></span><label style="display:flex;gap:6px;align-items:center;font-size:13px;margin-left:auto"><input type="checkbox" data-change="offerPrevToggle" ${cur.showPrev ? 'checked' : ''}> Önceki fiyatı teklifte göster</label></div>` : ''}
       <div class="chips" style="margin-bottom:10px"><button class="chip ${cur.tab === 'view' ? 'on' : ''}" data-act="offerTab" data-v="view">Önizleme</button>${ed ? `<button class="chip ${cur.tab === 'edit' ? 'on' : ''}" data-act="offerTab" data-v="edit">Metni düzenle</button>` : ''}</div>
       ${cur.tab === 'edit' ? `<textarea id="offerTxt" class="inp" style="min-height:360px;font-family:var(--font);line-height:1.5">${esc(cur.text)}</textarea>
         <p class="muted" style="font-size:12.5px;margin:6px 0 0">Bu değişiklik yalnızca bu teklif için geçerli. <code>{fiyat_tablosu}</code> satırı fiyat tablosu olarak çizilir; <code>**kalın**</code> yazı kalın görünür.</p>`
@@ -234,6 +236,7 @@ export function renderOffer() {
     <div class="mf">
       ${cur.tab === 'edit' ? `<button class="btn sp" data-act="offerTab" data-v="view">Vazgeç</button><button class="btn pri" data-act="offerSaveText">Bu teklif için kaydet</button>` : `
       ${ed && !r.offerSentAt && ['talep', 'teklif'].includes(r.stage) ? '<button class="btn sp" data-act="offerSent">Gönderildi olarak işaretle</button>' : r.offerSentAt ? `<span class="badge olive sp" style="align-self:center">Gönderildi ${fmtDate(new Date(r.offerSentAt).toISOString().slice(0, 10))}</span>` : ''}
+      ${ed ? `<button class="btn" data-act="revise" data-col="${col}" data-id="${r.id}">${ic('pencil')} Revize et</button>` : ''}
       <button class="btn" data-act="offerWord">${ic('download')} Word</button>
       <button class="btn" data-act="offerPrint">${ic('printer')} Yazdır / PDF</button>
       <button class="btn" data-act="offerCopy">${ic('copy')} Kopyala</button>
@@ -242,6 +245,8 @@ export function renderOffer() {
     </div></div></div>`;
 }
 A.offer = (el) => openOffer(el.dataset.col || 'weddings', el.dataset.id);
+A.offerPrevToggle = (el) => { cur.showPrev = el.checked; renderOffer(); };
+A._reopenOffer = (col, id) => openOffer(col, id);
 A.offerTab = (el) => { if (cur.tab === 'edit' && el.dataset.v === 'view') { const r = curRec(); cur.text = currentText(cur.col, r); } cur.tab = el.dataset.v; renderOffer(); };
 A.offerEditRec = () => { const { col, id } = cur; closeModal(); A.edit({ dataset: { col, id } }); };
 A.offerSaveText = async (el) => {
