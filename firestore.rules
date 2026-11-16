@@ -87,6 +87,10 @@ service cloud.firestore {
       allow read: if signed();
       allow write: if isAdmin();
     }
+    match /rates/{id} {
+      allow read: if signed();
+      allow write: if isAdmin();
+    }
     match /visits/{id} {
       allow read: if signed();
       allow create, update: if canSales();

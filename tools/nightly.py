@@ -104,6 +104,38 @@ def ortunc_fc(t):
                          'arr': int(m.group(3)), 'roomRev': rr, 'adr': round(rr / occ, 2) if occ else 0, 'src': 'geçmiş'})
     return out
 
+def ortunc_yearly(t):
+    """Yearly Forecast (Yıllık Doluluk): her gün için kesin (D) oda sayısı -> ileri tarihli satışlar"""
+    hdr = re.search(r'ORTUNC HOTEL\s+(\d\d\.\d\d\.\d\d)', t)
+    if not hdr: return []
+    import datetime
+    asof = (datetime.datetime.strptime(hdr.group(1), '%d.%m.%y').date() - datetime.timedelta(days=1)).isoformat()
+    lines = t.splitlines(); out = []; i = 0
+    while i < len(lines):
+        mh = list(re.finditer(r'(\d{4}) - (\d\d)', lines[i]))
+        if len(mh) >= 2 and i + 1 < len(lines) and re.search(r'\bDAY\b', lines[i + 1]):
+            cols = [(m.end(), 'D') if m.group(0) == 'D' else (m.end(), 'ND') for m in re.finditer(r'\bN?D\b', lines[i + 1])]
+            dcols = [c for c in cols if c[1] == 'D']
+            months = [(int(m.group(1)), int(m.group(2))) for m in mh]
+            j = i + 2
+            while j < len(lines) and re.match(r'\s*\d\d\s', lines[j]):
+                day = int(lines[j].split()[0])
+                for m in re.finditer(r'\d+', lines[j][lines[j].index(lines[j].split()[0]) + 2:]):
+                    end = m.end() + lines[j].index(lines[j].split()[0]) + 2
+                    k = min(range(len(cols)), key=lambda q: abs(cols[q][0] - end))
+                    if cols[k][1] != 'D' or abs(cols[k][0] - end) > 3: continue
+                    mi = dcols.index(cols[k])
+                    if mi >= len(months): continue
+                    y, mo = months[mi]
+                    try: d = datetime.date(y, mo, day).isoformat()
+                    except ValueError: continue
+                    if d > asof: out.append({'hotel': 'ortunc', 'asOf': asof, 'date': d, 'rooms': int(m.group(0)), 'roomRev': ''})
+                j += 1
+            i = j
+        else:
+            i += 1
+    return out
+
 # ---------------- Elia (Elektra) ----------------
 def elia_mgr(t):
     m = re.search(r'(\d\d\.\d\d\.\d{4})\s*-\s*Local', t)
@@ -173,7 +205,7 @@ def elia_fc(t):
     return out
 
 def main(paths):
-    daily = {}; otb = []; files = []
+    daily = {}; otb = []; files = []; yearly = []
     for p in paths:
         t = txt(p); kind = None
         if 'Manager - Flash' in t and 'ORTUNC' in t.upper() and re.search(r'\n\s*Gross\s*\n', t):
@@ -185,6 +217,8 @@ def main(paths):
         elif 'Revenue by Transaction Codes' in t and 'ORTUNC' in t.upper():
             r = ortunc_bf(t); kind = 'ortunc-gelir'
             if r: daily.setdefault(('ortunc', r['date']), {}).update(r)
+        elif 'Yearly Forecast' in t and 'ORTUNC' in t.upper():
+            yearly += ortunc_yearly(t); kind = 'ortunc-yillik'
         elif 'History and Forecast' in t:
             otb += ortunc_fc(t); kind = 'ortunc-forecast'
         elif 'Oda Analizi' in t and 'Gelir Analizi' in t:
@@ -211,6 +245,9 @@ def main(paths):
     for h in HIST:
         k = (h['hotel'], h['date'])
         if k not in daily: daily[k] = dict(h)
+    # yıllık doluluk: aylık forecast'in kapsamadığı ileri günler (yalnız oda sayısı)
+    have = {(o['hotel'], o['date']) for o in otb}
+    otb += [y for y in yearly if (y['hotel'], y['date']) not in have]
     # aynı otel+tarih için en son tahmin
     seen = {}
     for o in otb:

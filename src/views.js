@@ -10,7 +10,8 @@ export const NAV_GROUPS = [
   ['Genel', [['pano', 'Pano', 'house'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar']]],
   ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart'], ['visits', 'Ziyaret planı', 'briefcase']]],
   ['Misafir', [['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban']]],
-  ['Yönetim', [['exec', 'Yönetici özeti', 'meeting'], ['perf', 'Otel performansı', 'bed'], ['goals', 'Hedefler & bütçe', 'target'], ['ledger', 'Satış kayıtları', 'table']]],
+  ['Gelir yönetimi', [['perf', 'Otel performansı', 'bed'], ['budget', 'Gelir bütçesi', 'target'], ['rates', 'Oda fiyatları', 'list']]],
+  ['Yönetim', [['exec', 'Yönetici özeti', 'meeting'], ['goals', 'Satış hedefleri', 'users'], ['ledger', 'Satış kayıtları', 'table']]],
   ['Analiz', [['reports', 'Genel raporlar', 'chart'], ['builder', 'Rapor oluşturucu', 'sliders']]],
 ];
 export const NAV = [...NAV_GROUPS.flatMap((g) => g[1]), ['settings', 'Ayarlar', 'settings']];

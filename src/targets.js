@@ -38,13 +38,9 @@ const teamTarget = (y, uid) => { const t = tdoc(y); const x = (t && t.team && t.
 const salesUsers = () => sortBy((S.data.users || []).filter((u) => u.active !== false && ['yonetici', 'satis'].includes(u.role)), (u) => u.name || '');
 
 /* ---------- ekran ---------- */
-
-/* ---------- ekran ---------- */
 S.goals = S.goals || { year: Number(today().slice(0, 4)), hotel: 'all', mode: 'gross' };
-V.goals = {
-  title: () => 'Hedefler & bütçe',
-  head: () => `${can.admin() ? `<button class="btn pri" data-act="budgetEdit">${ic('pencil')}<span class="hide-m"> Bütçeyi düzenle / revize et</span></button><button class="btn" data-act="teamEdit">${ic('target')}<span class="hide-m"> Ekip hedefleri</span></button>` : ''}<button class="btn" data-act="goalsExcel">${ic('table')}<span class="hide-m"> Excel</span></button><button class="btn" data-act="goalsPrint">${ic('printer')}<span class="hide-m"> PDF</span></button>`,
-  body: () => {
+function goalsBody(part) {
+  {
     if (A._loadPerf) A._loadPerf();
     const G = S.goals; const y = G.year; const hs = G.hotel === 'all' ? Object.keys(HOTELS) : [G.hotel]; const gross = G.mode !== 'net';
     const b = budgetSeries(y, hs, !gross); const a = actual(y, hs); const t = today(); const ys = String(y);
@@ -62,9 +58,9 @@ V.goals = {
     const lastV = vers[vers.length - 1];
     return `<div class="perf">
       <div class="perfbar"><div class="seg" role="group" aria-label="Yıl">${yearOpts.map((v) => `<button class="${v === y ? 'on' : ''}" data-act="goalsYear" data-y="${v}" aria-pressed="${v === y}">${v}</button>`).join('')}</div>
-        <div class="seg" role="group" aria-label="Otel">${[['all', 'İki otel'], ...Object.entries(HOTELS)].map(([k, l]) => `<button class="${G.hotel === k ? 'on' : ''}" data-act="goalsHotel" data-h="${k}" aria-pressed="${G.hotel === k}">${esc(l)}</button>`).join('')}</div>
-        <div class="seg" role="group" aria-label="Tutarlar"><button class="${gross ? '' : 'on'}" data-act="goalsMode" data-m="net">Net</button><button class="${gross ? 'on' : ''}" data-act="goalsMode" data-m="gross">Brüt</button></div></div>
-      ${!b.set ? `<div class="banner">${ic('target')}<span><b>${y} için gelir bütçesi girilmedi.</b> ${can.admin() ? '"Bütçeyi düzenle" ile aylık ya da gün gün girin; Excel bütçe dosyanızı da yükleyebilirsiniz.' : 'Yönetici bütçeyi girdiğinde gerçekleşme burada görünür.'}</span>${can.admin() ? '<button class="btn sm" data-act="budgetEdit">Bütçeyi gir</button>' : ''}</div>` : ''}
+        ${part === 'budget' ? `        <div class="seg" role="group" aria-label="Otel">${[['all', 'İki otel'], ...Object.entries(HOTELS)].map(([k, l]) => `<button class="${G.hotel === k ? 'on' : ''}" data-act="goalsHotel" data-h="${k}" aria-pressed="${G.hotel === k}">${esc(l)}</button>`).join('')}</div>
+        <div class="seg" role="group" aria-label="Tutarlar"><button class="${gross ? '' : 'on'}" data-act="goalsMode" data-m="net">Net</button><button class="${gross ? 'on' : ''}" data-act="goalsMode" data-m="gross">Brüt</button></div>` : ''}</div>
+      ${part === 'budget' ? `      ${!b.set ? `<div class="banner">${ic('target')}<span><b>${y} için gelir bütçesi girilmedi.</b> ${can.admin() ? '"Bütçeyi düzenle" ile aylık ya da gün gün girin; Excel bütçe dosyanızı da yükleyebilirsiniz.' : 'Yönetici bütçeyi girdiğinde gerçekleşme burada görünür.'}</span>${can.admin() ? '<button class="btn sm" data-act="budgetEdit">Bütçeyi gir</button>' : ''}</div>` : ''}
       ${b.set ? `<div class="kband">
         ${[['roomRev', 'Oda geliri'], ['bfRev', 'Kahvaltı'], ['fbRev', 'Restoran'], ['total', 'Toplam']].map(([k, l]) => { const av = aTD ? (k === 'fbRev' ? g(aTD, 'restRev') : k === 'total' ? (g(aTD, 'roomRev') || 0) + (g(aTD, 'bfRev') || 0) + (g(aTD, 'restRev') || 0) : g(aTD, k)) : null; const bv = bTD ? bTD[k] : null; const p = pctOf(av, bv); return `<div class="kb"><small>${l} · bugüne kadar</small><b>${km(av)}</b><em>bütçe ${km(bv)} · ${P(p)}</em>${bar(p)}</div>`; }).join('')}
         <div class="kb"><small>Oda ADR · bugüne kadar</small><b>${km(g(aTD, 'adr'))}</b><em>bütçe ${km(bTD && bTD.adr)}</em><span class="kfoot">satış ADR (oda+kahvaltı) ${km(g(aTD, 'sadr'))}</span></div>
@@ -79,11 +75,22 @@ V.goals = {
         <div class="scroll-x"><table class="tb perf-t"><tr><th>Sürüm</th><th>Tarih · hazırlayan</th><th>Not</th><th class="n">Oda-gece</th><th class="n">Ortunç</th><th class="n">Elia</th><th class="n">Genel toplam (brüt)</th><th class="n">Öncekine göre</th><th></th></tr>
         ${vers.map((v, i) => { const tot = (h) => Array.from({ length: 12 }, (_, m) => monthTot(v.doc, h, y, m).total).reduce((s2, z) => s2 + z, 0); const rn = Object.keys(HOTELS).reduce((s2, h) => s2 + Array.from({ length: 12 }, (_, m) => monthTot(v.doc, h, y, m).rn).reduce((q, z) => q + z, 0), 0); const all = tot('ortunc') + tot('elia'); const prev = i ? (() => { const pv = vers[i - 1]; return Object.keys(HOTELS).reduce((s2, h) => s2 + Array.from({ length: 12 }, (_, m) => monthTot(pv.doc, h, y, m).total).reduce((q, z) => q + z, 0), 0); })() : null;
           return `<tr${v.current ? ' class="cur"' : ''}><td><b>${esc(v.label)}</b></td><td>${v.at ? esc(fmtDate(new Date(v.at).toISOString().slice(0, 10))) : ''}${v.by ? ` · ${esc(v.by)}` : ''}</td><td>${esc(v.note || '')}</td><td class="n">${fmtNum(Math.round(rn))}</td><td class="n">${km(tot('ortunc'))}</td><td class="n">${km(tot('elia'))}</td><td class="n"><b>${km(all)}</b></td><td class="n">${prev != null ? `${all >= prev ? '+' : '−'}${km(Math.abs(all - prev))}` : '—'}</td><td class="n" style="white-space:nowrap"><button class="btn sm" data-act="bVerX" data-i="${i}" title="Excel">${ic('table')}</button> <button class="btn sm" data-act="bVerP" data-i="${i}" title="PDF">${ic('printer')}</button></td></tr>`; }).join('')}</table></div></div>` : ''}
-      <div class="card"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0;flex:1">Satış ekibi · ${y}</h3><span class="muted" style="font-size:12.5px">Gelir ve oda-gece kesinleşme tarihine, talep kayıt tarihine, ziyaret aktivite tarihine göre</span></div>
+` : ''}
+      ${part === 'team' ? `      <div class="card"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0;flex:1">Satış ekibi · ${y}</h3><span class="muted" style="font-size:12.5px">Gelir ve oda-gece kesinleşme tarihine, talep kayıt tarihine, ziyaret aktivite tarihine göre</span></div>
         ${team.length ? (() => { const cm = ys === t.slice(0, 4) ? Number(t.slice(5, 7)) - 1 : -1; return `<div class="scroll-x"><table class="tb perf-t"><tr><th>Kişi</th>${TEAM_KEYS.map(([, l]) => `<th class="n">${esc(l)}<div class="sub">${cm >= 0 ? MONTHS[cm] : 'yıl'} · yıl</div></th>`).join('')}</tr>
-          ${team.map((u) => { const tt = teamTarget(y, u.id); const aa = teamActual(u.id, y); return `<tr><td>${esc(u.name)}</td>${TEAM_KEYS.map(([k]) => { const fm = (v) => (k === 'rev' ? km(v) : fmtNum(v)); const mA = cm >= 0 ? aa[k][cm] : null; const mT = cm >= 0 ? tt[k][cm] : null; const yA = aa[k].reduce((s2, v) => s2 + v, 0); const yT = tt[k].reduce((s2, v) => s2 + v, 0); return `<td class="n">${mA == null ? '' : `${fm(mA)}${mT ? ` / ${fm(mT)}` : ''}`}<div class="sub">yıl ${fm(yA)}${yT ? ` / ${fm(yT)} · ${P(pctOf(yA, yT))}` : ''}</div>${yT ? bar(pctOf(yA, yT)) : ''}</td>`; }).join('')}</tr>`; }).join('')}</table></div>`; })() : '<div class="pad muted">Satış rolünde kullanıcı yok.</div>'}</div>
+          ${team.map((u) => { const tt = teamTarget(y, u.id); const aa = teamActual(u.id, y); return `<tr><td>${esc(u.name)}</td>${TEAM_KEYS.map(([k]) => { const fm = (v) => (k === 'rev' ? km(v) : fmtNum(v)); const mA = cm >= 0 ? aa[k][cm] : null; const mT = cm >= 0 ? tt[k][cm] : null; const yA = aa[k].reduce((s2, v) => s2 + v, 0); const yT = tt[k].reduce((s2, v) => s2 + v, 0); return `<td class="n">${mA == null ? '' : `${fm(mA)}${mT ? ` / ${fm(mT)}` : ''}`}<div class="sub">yıl ${fm(yA)}${yT ? ` / ${fm(yT)} · ${P(pctOf(yA, yT))}` : ''}</div>${yT ? bar(pctOf(yA, yT)) : ''}</td>`; }).join('')}</tr>`; }).join('')}</table></div>`; })() : '<div class="pad muted">Satış rolünde kullanıcı yok.</div>'}</div>` : ''}
     </div>`;
-  },
+  }
+}
+V.budget = {
+  title: () => 'Gelir bütçesi',
+  head: () => `${can.admin() ? `<button class="btn pri" data-act="budgetEdit">${ic('pencil')}<span class="hide-m"> Bütçeyi düzenle / revize et</span></button>` : ''}<button class="btn" data-act="goalsExcel">${ic('table')}<span class="hide-m"> Excel</span></button><button class="btn" data-act="goalsPrint">${ic('printer')}<span class="hide-m"> PDF</span></button>`,
+  body: () => goalsBody('budget'),
+};
+V.goals = {
+  title: () => 'Satış hedefleri',
+  head: () => `${can.admin() ? `<button class="btn pri" data-act="teamEdit">${ic('target')}<span class="hide-m"> Hedefleri düzenle</span></button>` : ''}<button class="btn" data-act="goalsExcel">${ic('table')}<span class="hide-m"> Excel</span></button>`,
+  body: () => goalsBody('team'),
 };
 function chartBA(bud, act, otb) {
   const W = 760, H = 200, pb = 24, pt = 10, cw = W / 12; const max = Math.max(1, ...bud, ...act.map((v, i) => v + (otb[i] || 0)));
@@ -143,7 +150,7 @@ A.goalsExcel = () => {
 A.goalsPrint = () => {
   const body = $('#body .perf'); if (!body) return;
   const c = body.cloneNode(true); c.querySelectorAll('.perfbar,.banner button,[data-act=bVerX],[data-act=bVerP]').forEach((x) => x.remove());
-  printHtml(`Hedefler-${S.goals.year}`, `<div class="pdoc"><div class="ph"><b>${esc(S.settings.hotelName)}</b><span>${esc(fmtDate(today()))} · ${esc(S.user.name)}</span></div><h1>Hedefler & bütçe · ${S.goals.year} · ${esc(S.goals.hotel === 'all' ? 'Ortunç + Elia' : HOTELS[S.goals.hotel])} · ${S.goals.mode === 'net' ? 'net' : 'brüt'}</h1>${c.innerHTML}</div>`, '@page{size:A4 landscape;margin:9mm}', true);
+  printHtml(`Hedefler-${S.goals.year}`, `<div class="pdoc"><div class="ph"><b>${esc(S.settings.hotelName)}</b><span>${esc(fmtDate(today()))} · ${esc(S.user.name)}</span></div><h1>${S.view === 'goals' ? 'Satış hedefleri' : 'Gelir bütçesi'} · ${S.goals.year} · ${esc(S.goals.hotel === 'all' ? 'Ortunç + Elia' : HOTELS[S.goals.hotel])} · ${S.goals.mode === 'net' ? 'net' : 'brüt'}</h1>${c.innerHTML}</div>`, '@page{size:A4 landscape;margin:9mm}', true);
 };
 
 /* ---------- pano kartı ---------- */
@@ -153,6 +160,6 @@ A._goalsWidget = () => {
   const bm = budgetRange(y, hs, upto.slice(0, 8) + '01', upto, false); const by = budgetRange(y, hs, `${y}-01-01`, upto, false);
   const am = sumRows((S.perf.daily || []).filter((x) => x.date >= upto.slice(0, 8) + '01' && x.date <= upto)); const ay = sumRows((S.perf.daily || []).filter((x) => x.date >= `${y}-01-01` && x.date <= upto));
   const p = pctOf(am.roomRevG, bm && bm.roomRev); const yp = pctOf(ay.roomRevG, by && by.roomRev);
-  return `<div class="card pad"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0;flex:1">Bütçe · ${y} · oda geliri (brüt)</h3><button class="btn sm" data-act="nav" data-v="goals">${ic('target')} Hedefler</button></div>
+  return `<div class="card pad"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0;flex:1">Bütçe · ${y} · oda geliri (brüt)</h3><button class="btn sm" data-act="nav" data-v="budget">${ic('target')} Gelir bütçesi</button></div>
     <div class="bars"><div class="bar"><span>${MONTHS[Number(upto.slice(5, 7)) - 1]} (bugüne kadar)</span>${bar(p)}<span class="v">${P(p)}</span></div><div class="bar"><span>Yıl (bugüne kadar)</span>${bar(yp)}<span class="v">${P(yp)}</span></div></div></div>`;
 };

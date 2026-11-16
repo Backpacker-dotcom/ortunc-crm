@@ -20,7 +20,7 @@ Ortunç Otel ve Elia Otel gece raporlarını Gmail'den alır, `nightly.py` ile o
    - Geçmiş yükleme için `newer_than` olmadan `subject:CRMGECMIS` ile de ara.
    - Her e-postayı `get_thread` ile aç; zaten işlenmiş messageId'leri atla.
 4. **Ekleri indir.** Her e-postadan YALNIZCA şu PDF ekleri indirilir; misafir listeleri (Konaklayan, Müşteri Listesi, Beklenen Giriş/Çıkış) indirilmez:
-   - Ortunç: adında "Yönetim Raporu Net", "Yönetim Raporu Brüt", "Günlük Gelir" ve "Forecast" geçenler (ör. "2026 Yönetim Raporu Net.PDF", "2026 Yönetim Raporu Brüt.PDF", "Günlük Gelir.PDF", "Aylık Forecast.PDF"). "Günlük Gelir" kahvaltı (Pension Breakfast) tutarı için, "Brüt" vergiler dahil tutarlar için gerekli.
+   - Ortunç: adında "Yönetim Raporu Net", "Yönetim Raporu Brüt", "Günlük Gelir" ve "Forecast" geçenler (ör. "2026 Yönetim Raporu Net.PDF", "2026 Yönetim Raporu Brüt.PDF", "Günlük Gelir.PDF", "Aylık Forecast.PDF"). "Günlük Gelir" kahvaltı (Pension Breakfast) tutarı için, "Brüt" vergiler dahil tutarlar için gerekli. Ayrıca adında "Yıllık Doluluk" geçen raporlar (ör. "2026 Yıllık Doluluk.PDF", "2027 Yıllık Doluluk.PDF"): ileri tarihli satılan odalar için (oda fiyatları ekranındaki "hedefin neresindeyiz").
    - Elia: "Günlük Yönetim Raporu.pdf", "Özet Günlük Yönetim Raporu.pdf" ve adında "Forecast" geçenler
    - Geçmiş yükleme e-postalarında (CRMGECMIS) tüm PDF ekleri indirilir.
    - Her eki ayrı ve boş bir klasöre kopyala (`/tmp/r/<messageId>/`).

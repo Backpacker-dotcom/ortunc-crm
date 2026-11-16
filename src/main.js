@@ -20,6 +20,7 @@ import './targets.js';
 import './visits.js';
 import './ledger.js';
 import './summary.js';
+import './rates.js';
 A._openForm = openForm;
 import { cfFormFields, cfCard, cfPairs, applyStages, cfOf, CF_COLS } from './customize.js';
 import { applyBrand } from './views.js';
