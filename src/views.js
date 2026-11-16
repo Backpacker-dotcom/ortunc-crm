@@ -8,7 +8,7 @@ import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, r
 
 export const NAV_GROUPS = [
   ['Genel', [['pano', 'Pano', 'house'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar']]],
-  ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart'], ['visits', 'Ziyaret planı', 'briefcase']]],
+  ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart'], ['visits', 'Ziyaret planı', 'briefcase'], ['blocks', 'Allotman & bloklar', 'layers']]],
   ['Misafir', [['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban']]],
   ['Gelir yönetimi', [['perf', 'Otel performansı', 'bed'], ['budget', 'Gelir bütçesi', 'target'], ['rates', 'Oda fiyatları', 'list']]],
   ['Yönetim', [['exec', 'Yönetici özeti', 'meeting'], ['goals', 'Satış hedefleri', 'users'], ['ledger', 'Satış kayıtları', 'table']]],
@@ -172,7 +172,7 @@ function monthlyChart(cur, prev) {
   cur.forEach((v, i) => { const x = cw * i + cw / 2; s += `<rect x="${x - 15}" y="${y(prev[i])}" width="13" height="${H - pb - y(prev[i])}" fill="#CBD5E2" rx="2"><title>${MON3[i]} geçen yıl: ${money(prev[i])}</title></rect><rect x="${x + 1}" y="${y(v)}" width="13" height="${H - pb - y(v)}" fill="var(--primary)" rx="2"><title>${MON3[i]}: ${money(v)}</title></rect><text x="${x}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#69768D">${MON3[i]}</text>`; });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:240px" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Aylık kesinleşen gelir grafiği">${s}</svg>`;
 }
-export const DASH_WIDGETS = [['perf', 'Dün otelde (gece raporu)'], ['goals', 'Bütçe gerçekleşme'], ['monthly', 'Aylık kesinleşen gelir'], ['due', 'Takipler · 7 gün'], ['events', 'Yaklaşan etkinlikler'], ['funnel', 'Grup & etkinlik hunisi'], ['segments', 'Segment dağılımı'], ['special', 'Misafir özel günleri'], ['attention', 'Dikkat (kontrat, temas)'], ['acts', 'Son aktiviteler']];
+export const DASH_WIDGETS = [['perf', 'Dün otelde (gece raporu)'], ['goals', 'Bütçe gerçekleşme'], ['monthly', 'Aylık kesinleşen gelir'], ['due', 'Takipler · 7 gün'], ['events', 'Yaklaşan etkinlikler'], ['blocks', 'Allotman & blok uyarıları'], ['funnel', 'Grup & etkinlik hunisi'], ['segments', 'Segment dağılımı'], ['special', 'Misafir özel günleri'], ['attention', 'Dikkat (kontrat, temas)'], ['acts', 'Son aktiviteler']];
 const dashCfg = () => { try { const c = JSON.parse(localStorage.getItem('ortunc-crm.dash') || 'null'); if (c && Array.isArray(c.order)) { DASH_WIDGETS.forEach(([k]) => { if (!c.order.includes(k)) c.order.push(k); }); return c; } } catch (e) { /* yok */ } return { order: DASH_WIDGETS.map((w) => w[0]), hidden: [] }; };
 A.dashEdit = () => {
   const c = dashCfg(); const lbl = Object.fromEntries(DASH_WIDGETS);
@@ -211,6 +211,7 @@ V.pano = {
     const segList = sortBy(Object.entries(segs), (e) => e[1], -1); const segMax = Math.max(1, ...segList.map((e) => e[1]));
     const W = {
       goals: A._goalsWidget ? A._goalsWidget() : '',
+      blocks: A._blocksWidget ? A._blocksWidget() : '',
       perf: A._perfWidget ? `<div style="grid-column:1/-1">${A._perfWidget()}</div>` : '',
       monthly: `<div class="card pad" style="grid-column:1/-1"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><h3 style="margin:0">Aylık kesinleşen gelir · ${y}</h3><span class="muted" style="font-size:12.5px">vergiler hariç, ₺, etkinlik tarihine göre · gri: ${yr - 1}</span><button class="btn sm" style="margin-left:auto" data-act="nav" data-v="builder">${ic('sliders')} Rapor oluşturucuda aç</button></div>${monthlyChart(cy.months, ly.months)}</div>`,
       due: `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Takipler · 7 gün</h3></div>${due.length ? `<div class="list">${due.map(taskRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan takip yok.</div>'}</div>`,
@@ -338,6 +339,7 @@ V.cal = {
       ...D().opps.filter((o) => o.stage !== 'kaybedildi' && o.start && o.start <= day && (o.end || o.start) >= day).map((o) => `<button class="ev" data-act="open" data-col="opps" data-id="${o.id}">${esc(o.title)}</button>`),
       ...D().tasks.filter((t) => !t.done && t.due === day).map((t) => `<button class="ev t" data-act="editTask" data-id="${t.id}">✓ ${esc(t.title)}</button>`),
       ...(A._visitCalEvents ? A._visitCalEvents(day) : []),
+      ...(A._blockCalEvents ? A._blockCalEvents(day) : []),
     ];
     return `<div class="card" style="overflow:hidden"><div class="cal">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d) => `<div class="dh">${d}</div>`).join('')}
       ${cells.map((c) => { const e = evs(c); return `<div class="d ${c.slice(0, 7) !== S.calMonth ? 'o' : ''} ${c === today() ? 'today' : ''}"><span class="num">${Number(c.slice(8))}</span>${e.slice(0, 3).join('')}${e.length > 3 ? `<span class="muted" style="font-size:11px">+${e.length - 3}</span>` : ''}</div>`; }).join('')}</div></div>
@@ -387,6 +389,7 @@ const SHEETS = {
       ${A._filesCard ? A._filesCard('accounts', a.id) : ''}
       <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yetkili kişiler</h3></div>${(a.contacts || []).length ? `<div class="list">${a.contacts.map((c) => `<div class="row"><div class="av">${esc(initials(c.name))}</div><div class="t"><b>${esc(c.name)}</b><span>${esc([c.title, c.phone, c.email].filter(Boolean).join(' · '))}</span></div><div class="acts">${c.phone ? `<a class="btn sm" href="tel:${esc(c.phone)}" aria-label="Ara">${ic('phone')}</a><a class="btn sm" href="https://wa.me/${waNum(c.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp">${ic('wa')}</a>` : ''}${c.email ? `<a class="btn sm" href="mailto:${esc(c.email)}" aria-label="E-posta">${ic('mail')}</a>` : ''}</div></div>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yetkili eklenmemiş.</div>'}</div>
       ${ops.length ? `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Grup & etkinlik talepleri</h3></div><div class="list">${ops.map((o) => `<button class="row" data-act="open" data-col="opps" data-id="${o.id}"><div class="t"><b>${esc(o.title)}</b><span>${esc(fmtRange(o.start, o.end))}</span></div><div class="r"><b>${o.value ? money(o.value, o.currency) : ''}</b>${badge(OPP_STAGES, o.stage)}</div></button>`).join('')}</div></div>` : ''}
+      ${A._blocksOfAcc ? A._blocksOfAcc(a.id) : ''}
       ${A._visitsOfAcc && A._visitsOfAcc(a.id).length ? `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Ziyaretler</h3></div><div class="list">${A._visitsOfAcc(a.id).slice(0, 8).map((v) => `<button class="row" data-act="visitEdit" data-id="${v.id}"><div class="t"><b>${esc(fmtDate(v.date))} · ${esc(v.purpose || '')}</b><span>${esc(v.ownerName || '')}${v.result ? ' · ' + esc(v.result.slice(0, 90)) : ''}</span></div><span class="badge ${v.status === 'yapildi' ? 'olive' : v.status === 'plan' ? 'teal' : 'gold'}">${v.status === 'yapildi' ? 'Yapıldı' : v.status === 'plan' ? 'Planlandı' : v.status === 'iptal' ? 'İptal' : 'Ertelendi'}</span></button>`).join('')}</div></div>` : ''}
       ${relBlocks('accounts', a.id)}${foot(a)}` };
   },
@@ -410,6 +413,7 @@ const SHEETS = {
       ${o.program ? `<div class="card pad"><h3>Program / menü</h3><div style="white-space:pre-wrap">${esc(o.program)}</div></div>` : ''}
       ${A._revCard ? A._revCard('opps', o) : ''}
       ${metricsStrip('opps', o)}
+      ${A._blockCard ? A._blockCard(o) : ''}
       <div class="card pad"><h3>Fiyat${(o.revisions || []).length ? ` · Rev. ${(o.revisions || []).length + 1}` : ''}</h3>${priceTable('opps', o)}${num(o.deposit) || num(o.depositPaid) ? `<table class="tb" style="margin-top:8px">${num(o.deposit) ? `<tr><td>İstenen ön ödeme</td><td class="n">${money(num(o.deposit), o.currency)}</td></tr>` : ''}${num(o.depositPaid) ? `<tr><td>Alınan</td><td class="n">${money(num(o.depositPaid), o.currency)}</td></tr><tr><td><b>Kalan</b></td><td class="n"><b>${money(Math.max(0, num(o.value) - num(o.depositPaid)), o.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
       ${A._filesCard ? A._filesCard('opps', o.id) : ''}
       ${relBlocks('opps', o.id)}${foot(o)}` };

@@ -91,6 +91,11 @@ service cloud.firestore {
       allow read: if signed();
       allow write: if isAdmin();
     }
+    match /blocks/{id} {
+      allow read: if signed();
+      allow create, update: if canSales();
+      allow delete: if isAdmin() || (canSales() && resource.data.createdBy == uid());
+    }
     match /visits/{id} {
       allow read: if signed();
       allow create, update: if canSales();

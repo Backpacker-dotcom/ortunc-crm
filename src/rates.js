@@ -41,6 +41,7 @@ const DAYT = { all: 'Tüm günler', wd: 'Hafta içi', we: 'Hafta sonu (Cuma-Cuma
 export const rid = (y, h) => ((h || S.rates.hotel || 'ortunc') === 'ortunc' ? String(y) : `${h || S.rates.hotel}-${y}`);
 export const rdoc = (y, h) => { const r = (S.data.rates || []).find((x) => x.id === rid(y, h)); return r ? { hotel: h || S.rates.hotel || 'ortunc', ...r } : null; };
 const typesOf = (d) => (d && d.types && d.types.length ? d.types : d && d.hotel === 'elia' ? ELIA_TYPES : DEF_TYPES);
+export const typesFor = (h, y) => typesOf(rdoc(y, h) || { hotel: h });
 export const HOTEL_L = { ortunc: 'Ortunç Otel', elia: 'Elia Otel' };
 const baseL = (d) => typesOf(d)[0].label;
 const NT = (d) => typesOf(d).filter((t) => t.nights);

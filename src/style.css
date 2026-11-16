@@ -384,3 +384,4 @@ h4.grp{margin:16px 2px 6px;font-size:13px;color:#3B4A63;font-weight:600}
 .rtab td .ovr,.bgrid .inp.ovr{text-decoration:underline;text-decoration-color:#C98A1B;text-underline-offset:3px}
 .bgrid .inp.spr{font-weight:600;border-color:var(--primary)}
 .bgrid .inp::placeholder{color:#8A95A8;opacity:1}
+.neg{color:#B4432E}
