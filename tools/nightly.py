@@ -43,6 +43,29 @@ HIST = []
 CAP = {'ortunc': 40, 'elia': 17}
 
 # ---------------- Ortunç (Opera Manager Flash) ----------------
+def ortunc_flash_gross(t):
+    m = re.search(r'Month to Date\s+(\d\d\.\d\d\.\d\d)', t)
+    if not m: return None
+    r = {'hotel': 'ortunc', 'date': d6(m.group(1))}
+    for k, lab in [('roomRevG', 'Room Revenue'), ('fbRevG', 'Food And Beverage Revenue'), ('totalRevG', 'Total Revenue'), ('adrG', 'ADR')]:
+        v = row(t, lab)
+        if len(v) >= 6:
+            r[k] = v[0]; r[k + '_mtd'] = v[1]; r[k + '_ytd'] = v[2]; r[k + '_ly'] = v[3]; r[k + '_lymtd'] = v[4]; r[k + '_lyytd'] = v[5]
+    return r
+
+def ortunc_bf(t):
+    """Günlük Gelir (Revenue by Transaction Codes, net): Pension Breakfast kodları 2000-2012 toplamı"""
+    m = re.search(r'Month to Date \(Date (\d\d\.\d\d\.\d\d)\)', t)
+    if not m: return None
+    tot = [0.0, 0.0, 0.0]; seen = False
+    for line in t.splitlines():
+        mm = re.match(r'\s*(20[01]\d)\s+Pension Breakfast.*?\s{2,}(-?\s?[\d.,]+)\s+(-?\s?[\d.,]+)\s+(-?\s?[\d.,]+)\s*$', line)
+        if mm:
+            seen = True
+            for i in range(3): tot[i] += num(mm.group(i + 2)) or 0
+    if not seen: return None
+    return {'hotel': 'ortunc', 'date': d6(m.group(1)), 'bfRev': round(tot[0], 2), 'bfRev_mtd': round(tot[1], 2), 'bfRev_ytd': round(tot[2], 2)}
+
 def ortunc_flash(t):
     m = re.search(r'Month to Date\s+(\d\d\.\d\d\.\d\d)', t)
     if not m: return None
@@ -109,6 +132,11 @@ def elia_mgr(t):
         r[k] = arr[0]; r[k + '_mtd'] = arr[2]; r[k + '_ytd'] = arr[3]
     for j, suf in [(0, ''), (2, '_mtd'), (3, '_ytd')]:
         r['fbRev' + suf] = round(sum((x[j] or 0) for x in fb), 2)
+    # pansiyon (kahvaltı) ve brüt tutarlar
+    pn, pg, rg, fg, tg = rev('Net Pansiyon Geliri'), rev('Pansiyon Geliri'), rev('Oda Geliri'), [rev('Yiyecek Geliri'), rev('İçecek Geliri'), rev('Alkol İçecek Geliri'), rev('Pansiyon Geliri')], rev('Toplam Gelir')
+    for j, suf in [(0, ''), (2, '_mtd'), (3, '_ytd')]:
+        r['bfRev' + suf] = pn[j]; r['bfRevG' + suf] = pg[j]; r['roomRevG' + suf] = rg[j]; r['totalRevG' + suf] = tg[j]
+        r['fbRevG' + suf] = round(sum((x[j] or 0) for x in fg), 2)
     for suf in ['', '_mtd', '_ytd']:
         o = r.get('occ' + suf) or 0; c = r.get('rooms' + suf) or 0
         r['adr' + suf] = round((r.get('roomRev' + suf) or 0) / o, 2) if o else 0
@@ -148,8 +176,14 @@ def main(paths):
     daily = {}; otb = []; files = []
     for p in paths:
         t = txt(p); kind = None
-        if 'Manager - Flash' in t and 'ORTUNC' in t.upper():
+        if 'Manager - Flash' in t and 'ORTUNC' in t.upper() and re.search(r'\n\s*Gross\s*\n', t):
+            r = ortunc_flash_gross(t); kind = 'ortunc-flash-brut'
+            if r: daily.setdefault(('ortunc', r['date']), {}).update(r)
+        elif 'Manager - Flash' in t and 'ORTUNC' in t.upper():
             r = ortunc_flash(t); kind = 'ortunc-flash'
+            if r: daily.setdefault(('ortunc', r['date']), {}).update(r)
+        elif 'Revenue by Transaction Codes' in t and 'ORTUNC' in t.upper():
+            r = ortunc_bf(t); kind = 'ortunc-gelir'
             if r: daily.setdefault(('ortunc', r['date']), {}).update(r)
         elif 'History and Forecast' in t:
             otb += ortunc_fc(t); kind = 'ortunc-forecast'
@@ -163,6 +197,16 @@ def main(paths):
         elif 'Doluluk Grafiği' in t and ('ELİA' in t or 'ELIA' in t):
             otb += elia_fc(t); kind = 'elia-forecast'
         files.append({'file': p.split('/')[-1], 'kind': kind})
+    for (h, d), r in daily.items():
+        for suf in ['', '_mtd', '_ytd']:
+            rn, rg = r.get('roomRev' + suf), r.get('roomRevG' + suf)
+            if h == 'ortunc' and r.get('bfRev' + suf) is not None and rn and rg and r.get('bfRevG' + suf) is None:
+                r['bfRevG' + suf] = round(r['bfRev' + suf] * rg / rn, 2)
+            occ = r.get('occ' + suf)
+            if occ and r.get('bfRev' + suf) is not None and rn is not None:
+                r['sadr' + suf] = round((rn + r['bfRev' + suf]) / occ, 2)
+                if rg is not None and r.get('bfRevG' + suf) is not None: r['sadrG' + suf] = round((rg + r['bfRevG' + suf]) / occ, 2)
+            if occ and rg is not None and r.get('adrG' + suf) is None: r['adrG' + suf] = round(rg / occ, 2)
     # geçmiş tablolarındaki günler: aynı gün için tam rapor yoksa eklenir
     for h in HIST:
         k = (h['hotel'], h['date'])
@@ -177,7 +221,9 @@ def main(paths):
 # ---- Google Sheet satır biçimi ----
 BASE = ['rooms', 'occ', 'occPct', 'ooo', 'comp', 'pax', 'arr', 'dep', 'noShow', 'newRes', 'cxl', 'rnRes', 'adr', 'revpar', 'roomRev', 'fbRev', 'otherRev', 'totalRev']
 PER = ['rooms', 'occ', 'occPct', 'pax', 'arr', 'adr', 'revpar', 'roomRev', 'fbRev', 'otherRev', 'totalRev']
-DAILY_COLS = ['key', 'hotel', 'date'] + BASE + [k + s for s in ['_mtd', '_ytd'] for k in PER] + [k + s for s in ['_ly', '_lymtd', '_lyytd'] for k in PER] + ['taRooms', 'groupRooms', 'compRooms', 'src', 'updatedAt']
+EXTRA = ['bfRev', 'bfRevG', 'roomRevG', 'fbRevG', 'totalRevG', 'adrG', 'sadr', 'sadrG']
+DAILY_COLS = (['key', 'hotel', 'date'] + BASE + [k + s for s in ['_mtd', '_ytd'] for k in PER] + [k + s for s in ['_ly', '_lymtd', '_lyytd'] for k in PER] + ['taRooms', 'groupRooms', 'compRooms', 'src', 'updatedAt']
+              + [k + s for k in EXTRA for s in ['', '_mtd', '_ytd']] + [k + s for k in ['roomRevG', 'totalRevG', 'adrG'] for s in ['_ly', '_lymtd', '_lyytd']])
 OTB_COLS = ['key', 'hotel', 'asOf', 'date', 'rooms', 'roomRev']
 
 def sheet_rows(res, stamp):

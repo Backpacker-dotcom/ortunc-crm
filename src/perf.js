@@ -1,6 +1,6 @@
 // Otel performansı: gece raporlarından (Ortunç Opera Manager Flash, Elia Elektra Günlük Yönetim Raporu) gelen günlük veriler
 import * as XLSX from 'xlsx';
-import { S, A, V, $, esc, ic, today, addDays, fmtDate, fmtNum, money, MON3, MONTHS, toast, can, sortBy, openForm } from './core.js';
+import { S, A, V, $, esc, ic, today, addDays, fmtDate, fmtNum, money, MON3, MONTHS, toast, can, sortBy, openForm, taxCfg } from './core.js';
 import { printHtml, saveFile } from './print.js';
 import { DS, QUICK } from './builder.js';
 
@@ -47,7 +47,7 @@ function demoData() {
     [['ortunc', 40, 9000], ['elia', 17, 5200]].forEach(([h, cap, base], hi) => {
       const w = new Date(d + 'T12:00:00').getDay(); const f = Math.min(1, seas(d) * (w === 5 || w === 6 ? 1.18 : 0.95) * (0.9 + ((i * 7 + hi * 3) % 11) / 50));
       const occ = Math.round(cap * f); const adr = Math.round(base * (0.6 + seas(d)) * (1 + ((i + hi) % 5) / 40)); const roomRev = occ * adr; const fbRev = Math.round(roomRev * (h === 'ortunc' ? 0.55 : 0.18));
-      daily.push({ key: `${h}_${d}`, hotel: h, date: d, rooms: cap, occ, occPct: Math.round((occ / cap) * 1000) / 10, pax: occ * 2, arr: Math.round(occ / 2), dep: Math.round(occ / 2), newRes: (i * 3 + hi) % 6, cxl: (i + hi) % 3 === 0 ? 1 : 0, adr: occ ? adr : 0, revpar: Math.round(roomRev / cap), roomRev, fbRev, otherRev: Math.round(roomRev * 0.03), totalRev: Math.round(roomRev * (h === 'ortunc' ? 1.58 : 1.21)) });
+      daily.push({ key: `${h}_${d}`, hotel: h, date: d, rooms: cap, occ, occPct: Math.round((occ / cap) * 1000) / 10, pax: occ * 2, arr: Math.round(occ / 2), dep: Math.round(occ / 2), newRes: (i * 3 + hi) % 6, cxl: (i + hi) % 3 === 0 ? 1 : 0, adr: occ ? adr : 0, revpar: Math.round(roomRev / cap), roomRev, fbRev, bfRev: Math.round(occ * (h === 'ortunc' ? 3600 : 1200)), otherRev: Math.round(roomRev * 0.03), totalRev: Math.round(roomRev * (h === 'ortunc' ? 1.58 : 1.21)) });
     });
   }
   const last = addDays(t, -1);
@@ -65,8 +65,35 @@ function demoData() {
 
 /* ---------- hesap ---------- */
 const SUMK = ['rooms', 'occ', 'pax', 'arr', 'dep', 'newRes', 'cxl', 'roomRev', 'fbRev', 'otherRev', 'totalRev'];
-const derive = (a) => { a.occPct = a.rooms ? (a.occ / a.rooms) * 100 : null; a.adr = a.occ ? a.roomRev / a.occ : null; a.revpar = a.rooms ? a.roomRev / a.rooms : null; return a; };
-export const sumRows = (rows) => derive(rows.reduce((a, r) => { SUMK.forEach((k) => { a[k] += r[k] || 0; }); a.n++; return a; }, { ...Object.fromEntries(SUMK.map((k) => [k, 0])), n: 0 }));
+// isteğe bağlı alanlar: tüm günlerde varsa toplanır, eksikse boş kalır (eski / geçmiş kayıtlarda kahvaltı ve brüt yok)
+const OPTK = ['bfRev', 'roomRevG', 'bfRevG', 'fbRevG', 'totalRevG'];
+// vergi çarpanları: oda ve pansiyon kahvaltı = KDV + konaklama vergisi (Opera brüt raporuyla aynı: net × 1,11); restoran = KDV
+export const TAXF = () => { const c = taxCfg(); return { pkg: 1 + (Number(c.kdv) + Number(c.kv)) / 100, fb: 1 + Number(c.kdv) / 100, kdv: c.kdv, kv: c.kv }; };
+const pickSuf = (r, suf) => {
+  const o = {}; [...SUMK, ...OPTK].forEach((k) => { const v = r[k + suf]; o[k] = v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v); });
+  // brüt rapor yoksa net tutara vergiler eklenerek hesaplanır
+  const f = TAXF();
+  if (o.roomRevG == null && o.roomRev != null) { o.roomRevG = o.roomRev * f.pkg; o.est = true; }
+  if (o.bfRevG == null && o.bfRev != null) { o.bfRevG = o.bfRev * f.pkg; o.est = true; }
+  if (o.fbRevG == null && o.fbRev != null) { o.fbRevG = (o.bfRev || 0) * f.pkg + Math.max(0, o.fbRev - (o.bfRev || 0)) * f.fb; o.est = true; }
+  if (o.totalRevG == null && o.totalRev != null) { o.totalRevG = (o.roomRevG || 0) + (o.fbRevG || 0) + (o.otherRev || 0) * f.fb; o.est = true; }
+  return o;
+};
+function agg(items) {
+  const a = { n: items.length }; const S2 = (arr, k) => arr.reduce((s, x) => s + (x[k] || 0), 0);
+  SUMK.forEach((k) => { a[k] = S2(items, k); });
+  OPTK.forEach((k) => { a[k] = items.length && items.every((x) => x[k] != null) ? S2(items, k) : null; });
+  a.occPct = a.rooms ? (a.occ / a.rooms) * 100 : null; a.adr = a.occ ? a.roomRev / a.occ : null; a.revpar = a.rooms ? a.roomRev / a.rooms : null;
+  a.adrG = a.roomRevG != null && a.occ ? a.roomRevG / a.occ : null; a.revparG = a.roomRevG != null && a.rooms ? a.roomRevG / a.rooms : null;
+  // satış ADR = (oda + pansiyon kahvaltı) / satılan oda — yalnızca kahvaltı tutarı bilinen günlerden
+  const wb = items.filter((x) => x.bfRev != null && x.occ); const ob = S2(wb, 'occ'); a.sadr = ob ? (S2(wb, 'roomRev') + S2(wb, 'bfRev')) / ob : null;
+  const wg = items.filter((x) => x.bfRevG != null && x.roomRevG != null && x.occ); const og = S2(wg, 'occ'); a.sadrG = og ? (S2(wg, 'roomRevG') + S2(wg, 'bfRevG')) / og : null;
+  a.bfpr = ob ? S2(wb, 'bfRev') / ob : null; a.bfprG = og ? S2(wg, 'bfRevG') / og : null; // oda başına kahvaltı
+  a.restRev = a.bfRev != null ? a.fbRev - a.bfRev : null; a.restRevG = a.bfRevG != null && a.fbRevG != null ? a.fbRevG - a.bfRevG : null;
+  a.est = items.some((x) => x.est);
+  return a;
+}
+export const sumRows = (rows) => agg(rows.map((r) => pickSuf(r, '')));
 export const hotelsOf = (h) => (h === 'all' ? Object.keys(HOTELS) : [h]);
 export const rowsOf = (h, a, b) => S.perf.daily.filter((r) => hotelsOf(h).includes(r.hotel) && r.date >= a && r.date <= b);
 export const lastDate = (h) => sortBy(S.perf.daily.filter((r) => hotelsOf(h).includes(r.hotel)), (r) => r.date, -1).map((r) => r.date)[0] || '';
@@ -76,7 +103,7 @@ export function period(h, d, suf) {
   const pick = hotelsOf(h).map((ht) => S.perf.daily.find((r) => r.hotel === ht && r.date === d)).filter(Boolean);
   const from = suf === '_mtd' ? d.slice(0, 8) + '01' : d.slice(0, 5) + '01-01';
   if (pick.length === hotelsOf(h).length && pick.every((r) => r['occ' + suf] != null && r['rooms' + suf] != null)) {
-    return derive(SUMK.reduce((a, k) => { a[k] = pick.reduce((s, r) => s + (r[k + suf] || 0), 0); return a; }, { src: 'rapor' }));
+    return Object.assign(agg(pick.map((r) => pickSuf(r, suf))), { src: 'rapor' });
   }
   return Object.assign(sumRows(rowsOf(h, from, d)), { src: 'kayit' });
 }
@@ -84,12 +111,12 @@ export function periodLy(h, d, suf) {
   const from = suf === '_mtd' ? ly(d).slice(0, 8) + '01' : ly(d).slice(0, 5) + '01-01';
   const stored = rowsOf(h, from, ly(d)); const days = Math.round((new Date(ly(d)) - new Date(from)) / 864e5) + 1;
   if (stored.length >= days * hotelsOf(h).length * 0.9) return Object.assign(sumRows(stored), { src: 'kayit' });
-  if (h === 'ortunc') { const r = S.perf.daily.find((x) => x.hotel === 'ortunc' && x.date === d); const lsuf = suf === '_mtd' ? '_lymtd' : '_lyytd'; if (r && r['occ' + lsuf] != null) return derive(SUMK.reduce((a, k) => { a[k] = r[k + lsuf] || 0; return a; }, { src: 'rapor' })); }
+  if (h === 'ortunc') { const r = S.perf.daily.find((x) => x.hotel === 'ortunc' && x.date === d); const lsuf = suf === '_mtd' ? '_lymtd' : '_lyytd'; if (r && r['occ' + lsuf] != null) return Object.assign(agg([pickSuf(r, lsuf)]), { src: 'rapor' }); }
   return null;
 }
 export function dayLy(h, d) {
   const stored = rowsOf(h, ly(d), ly(d)); if (stored.length === hotelsOf(h).length) return sumRows(stored);
-  if (h === 'ortunc') { const r = S.perf.daily.find((x) => x.hotel === 'ortunc' && x.date === d); if (r && r.occ_ly != null) return derive(SUMK.reduce((a, k) => { a[k] = r[k + '_ly'] || 0; return a; }, {})); }
+  if (h === 'ortunc') { const r = S.perf.daily.find((x) => x.hotel === 'ortunc' && x.date === d); if (r && r.occ_ly != null) return agg([pickSuf(r, '_ly')]); }
   return null;
 }
 
@@ -101,7 +128,9 @@ const chg = (a, b, isPct) => {
   const p = isPct ? a - b : ((a - b) / Math.abs(b)) * 100; const up = p >= 0;
   return `<span class="dl-${up ? 'up' : 'dn'}">${up ? '▲' : '▼'} ${isPct ? `${Math.abs(p).toFixed(1).replace('.', ',')} puan` : `%${Math.abs(p).toFixed(1).replace('.', ',')}`}</span>`;
 };
-const METRICS = [['occPct', 'Doluluk', pct, true], ['occ', 'Satılan oda', (v) => (v == null ? '—' : fmtNum(v))], ['adr', 'ADR', kmoney], ['revpar', 'RevPAR', kmoney], ['roomRev', 'Oda geliri', kmoney], ['fbRev', 'Yiyecek-içecek', kmoney], ['totalRev', 'Toplam gelir', kmoney]];
+const METRICS = [['occPct', 'Doluluk', pct, true], ['occ', 'Satılan oda', (v) => (v == null ? '—' : fmtNum(v))], ['adr!', 'Oda ADR<div class="sub">net</div>', kmoney], ['adrG!', 'Oda ADR<div class="sub">brüt</div>', kmoney], ['sadr!', 'Satış ADR<div class="sub">oda + kahvaltı, net</div>', kmoney], ['sadrG!', 'Satış ADR<div class="sub">oda + kahvaltı, brüt</div>', kmoney], ['revpar', 'RevPAR', kmoney], ['roomRev', 'Oda geliri', kmoney], ['bfRev', 'Kahvaltı<div class="sub">pansiyon</div>', kmoney], ['restRev', 'Restoran / Y-İ<div class="sub">kahvaltı hariç</div>', kmoney], ['totalRev', 'Toplam gelir', kmoney]];
+const GK = { adr: 'adrG', revpar: 'revparG', roomRev: 'roomRevG', fbRev: 'fbRevG', totalRev: 'totalRevG', sadr: 'sadrG', bfRev: 'bfRevG', restRev: 'restRevG', bfpr: 'bfprG' };
+export const mk = (k, mode) => (k.endsWith('!') ? k.slice(0, -1) : (mode || S.perf.mode) === 'gross' ? GK[k] || k : k);
 
 function bars(series, opts = {}) {
   // series: [{label, v, lyv, title}] -> SVG sütun grafiği
@@ -131,6 +160,7 @@ V.perf = {
       if (S.store.kind !== 'local' && (!c.url || !c.token)) return `<div class="empty"><b>Gece raporu bağlantısı kurulmadı</b>Yönetici Ayarlar → Genel → "Otel performans verisi" bölümünden bağlantı adresini girdiğinde Ortunç ve Elia'nın günlük doluluk ve gelirleri burada görünür.${can.admin() ? `<div style="margin-top:12px"><button class="btn pri" data-act="perfSetup">${ic('pencil')} Bağlantıyı gir</button></div>` : ''}</div>`;
       return `<div class="empty"><b>${P.loading ? 'Veriler yükleniyor…' : P.err ? 'Veri alınamadı' : 'Henüz veri yok'}</b>${esc(P.err || (P.loading ? '' : 'İlk gece raporu işlendiğinde burada görünecek.'))}</div>`;
     }
+    const G = P.mode === 'gross'; const TF = TAXF();
     const h = P.hotel || 'all'; const ld = lastDate(h); const d = P.date && P.date <= ld ? P.date : ld;
     const day = sumRows(rowsOf(h, d, d)); const dly = dayLy(h, d);
     const mtd = period(h, d, '_mtd'), mly = periodLy(h, d, '_mtd'), ytd = period(h, d, '_ytd'), yly = periodLy(h, d, '_ytd');
@@ -145,16 +175,19 @@ V.perf = {
     const t0 = today(); const otbDays = Array.from({ length: 30 }, (_, i) => addDays(t0, i));
     const otbS = otbDays.map((x) => { const o = P.otb.filter((r) => hotelsOf(h).includes(r.hotel) && r.date === x); const rm = o.reduce((s, r) => s + r.rooms, 0); return { label: x.slice(8, 10), v: cap ? (rm / cap) * 100 : 0, title: `${fmtDate(x)} · ${rm} oda`, rm, rev: o.reduce((s, r) => s + r.roomRev, 0) }; });
     const otbRm = otbS.reduce((s, x) => s + x.rm, 0), otbRev = otbS.reduce((s, x) => s + x.rev, 0); const asOf = sortBy(P.otb.filter((r) => hotelsOf(h).includes(r.hotel)), (r) => r.asOf, -1).map((r) => r.asOf)[0];
-    const cmpRow = (lab, a, l) => `<tr><td>${lab}</td>${METRICS.map(([k, , f, isP]) => `<td class="n">${a ? f(a[k]) : '—'}<div class="sub">${l ? `${f(l[k])} · ${chg(a && a[k], l[k], isP)}` : ''}</div></td>`).join('')}</tr>`;
+    const cmpRow = (lab, a, l) => `<tr><td>${lab}</td>${METRICS.map(([k0, , f, isP]) => { const k = mk(k0); return `<td class="n">${a ? f(a[k]) : '—'}<div class="sub">${l && l[k] != null ? `${f(l[k])} · ${chg(a && a[k], l[k], isP)}` : ''}</div></td>`; }).join('')}</tr>`;
     S.perfLast = { h, d, day, dly, mtd, mly, ytd, yly, months, otbS };
     return `<div class="perf">
       <div class="perfbar"><div class="seg" role="group" aria-label="Otel">${[['all', 'İki otel'], ...Object.entries(HOTELS)].map(([k, l]) => `<button class="${h === k ? 'on' : ''}" data-act="perfHotel" data-h="${k}" aria-pressed="${h === k}">${esc(l)}</button>`).join('')}</div>
+        <div class="seg" role="group" aria-label="Tutarlar"><button class="${G ? '' : 'on'}" data-act="perfMode" data-m="net" aria-pressed="${!G}">Net</button><button class="${G ? 'on' : ''}" data-act="perfMode" data-m="gross" aria-pressed="${G}">Brüt</button></div>
         <label class="perfdate">İş günü <input type="date" class="inp" value="${esc(d)}" max="${esc(ld)}" data-change="perfDate" aria-label="İş günü"></label>
         <span class="muted" style="font-size:12.5px;margin-left:auto">${P.loading ? 'güncelleniyor…' : P.err ? `<span style="color:#B4432E">${esc(P.err)}</span>` : P.at ? `son güncelleme ${esc(new Date(P.at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }))}` : ''}</span></div>
       <div class="kband">
-        ${[['occPct', 'Doluluk', pct, true, `${fmtNum(day.occ)} / ${fmtNum(day.rooms)} oda`], ['adr', 'ADR (net)', kmoney], ['revpar', 'RevPAR', kmoney], ['roomRev', 'Oda geliri', kmoney], ['fbRev', 'Yiyecek-içecek', kmoney], ['totalRev', 'Toplam gelir', kmoney]].map(([k, l, f, isP, foot]) => `<div class="kb"><small>${l} · ${esc(fmtDate(d))}</small><b>${f(day[k])}</b>${dly ? `<em>${chg(day[k], dly[k], isP)} geçen yıl ${f(dly[k])}</em>` : '<em>geçen yıl verisi yok</em>'}${foot ? `<span class="kfoot">${foot}</span>` : ''}</div>`).join('')}
+        <div class="kb"><small>Doluluk · ${esc(fmtDate(d))}</small><b>${pct(day.occPct)}</b>${dly ? `<em>${chg(day.occPct, dly.occPct, true)} geçen yıl ${pct(dly.occPct)}</em>` : '<em>geçen yıl verisi yok</em>'}<span class="kfoot">${fmtNum(day.occ)} / ${fmtNum(day.rooms)} oda</span></div>
+        ${[['adr', 'adrG', 'Oda ADR', 'yalnız oda'], ['sadr', 'sadrG', 'Satış ADR', 'oda + kahvaltı'], ['bfpr', 'bfprG', 'Kahvaltı / oda', 'pansiyon kahvaltı']].map(([kn, kg, l, sub]) => `<div class="kb"><small>${l} · ${sub}</small><b>${kmoney(day[kn])}</b><em>brüt <b class="gb">${kmoney(day[kg])}</b></em>${dly && dly[kn] != null ? `<span class="kfoot">${chg(day[kn], dly[kn])} geçen yıl ${kmoney(dly[kn])}</span>` : ''}</div>`).join('')}
+        ${[['roomRev', 'Oda geliri'], ['totalRev', 'Toplam gelir']].map(([k0, l]) => { const k = mk(k0); return `<div class="kb"><small>${l} · ${G ? 'brüt' : 'net'}</small><b>${kmoney(day[k])}</b>${dly && dly[k] != null ? `<em>${chg(day[k], dly[k])} geçen yıl ${kmoney(dly[k])}</em>` : '<em>geçen yıl verisi yok</em>'}</div>`; }).join('')}
       </div>
-      <div class="card" style="margin-bottom:14px"><div class="pad" style="padding-bottom:6px"><h3 style="margin:0">Gün, ay ve yıl · geçen yılla</h3><p class="muted" style="margin:4px 0 0;font-size:12.5px">Alt satırda geçen yılın aynı dönemi ve değişim. Gelirler vergiler hariç (net), ₺.</p></div>
+      <div class="card" style="margin-bottom:14px"><div class="pad" style="padding-bottom:6px"><h3 style="margin:0">Gün, ay ve yıl · geçen yılla</h3><p class="muted" style="margin:4px 0 0;font-size:12.5px">Alt satırda geçen yılın aynı dönemi ve değişim. Tutarlar ${G ? 'vergiler dahil (brüt)' : 'vergiler hariç (net)'}, ₺. Satış ADR = (oda + pansiyon kahvaltı) ÷ satılan oda. Brüt: oda ve kahvaltıya KDV %${TF.kdv} + konaklama vergisi %${TF.kv}, restorana KDV %${TF.kdv}${day.est || mtd.est ? '; brüt raporu olmayan günlerde bu oranlarla hesaplandı' : ''}.</p></div>
         <div class="scroll-x"><table class="tb perf-t"><tr><th></th>${METRICS.map(([, l]) => `<th class="n">${l}</th>`).join('')}</tr>
         ${cmpRow(`Gün<div class="sub">${esc(fmtDate(d))}</div>`, day, dly)}${cmpRow(`Ay başından<div class="sub">${esc(MONTHS[Number(d.slice(5, 7)) - 1])}</div>`, mtd, mly)}${cmpRow(`Yıl başından<div class="sub">${esc(yr)}</div>`, ytd, yly)}</table></div></div>
       <div class="grid g2">
@@ -162,12 +195,13 @@ V.perf = {
         <div class="card pad"><h3>Önümüzdeki 30 gün · kesin rezervasyon</h3>${asOf ? `${bars(otbS, { fmt: pct, max: 100, aria: 'Önümüzdeki 30 gün doluluk' })}<p class="muted" style="font-size:12px;margin:2px 0 0">${fmtNum(otbRm)} oda-gece · ${kmoney(otbRev)} oda geliri · ${esc(fmtDate(asOf))} raporuna göre</p>` : '<span class="muted">Forecast raporu işlenmedi.</span>'}</div>
         <div class="card" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px"><h3 style="margin:0">${esc(yr)} aylık · geçen yılla</h3></div>
           <div class="pad" style="padding-top:4px">${bars(months.map((m) => ({ label: m.label, v: m.a ? m.a.roomRev : 0, lyv: m.l ? m.l.roomRev : 0 })), { fmt: kmoney, aria: 'Aylık oda geliri' })}<p class="muted" style="font-size:12px;margin:2px 0 8px">Oda geliri · koyu: ${yr} · gri: ${Number(yr) - 1}. Yalnızca işlenmiş gece raporlarındaki günler toplanır.</p></div>
-          <div class="scroll-x"><table class="tb perf-t"><tr><th>Ay</th><th class="n">Gün</th><th class="n">Doluluk</th><th class="n">Oda-gece</th><th class="n">ADR</th><th class="n">RevPAR</th><th class="n">Oda geliri</th><th class="n">Yiyecek-içecek</th><th class="n">Toplam gelir</th><th class="n">Toplam · geçen yıl</th></tr>
-          ${months.filter((m) => m.a || m.l).map((m) => `<tr><td>${esc(MONTHS[Number(m.m.slice(5)) - 1])}</td><td class="n">${m.a ? m.a.n / hotelsOf(h).length : 0}</td><td class="n">${m.a ? pct(m.a.occPct) : '—'}</td><td class="n">${m.a ? fmtNum(m.a.occ) : '—'}</td><td class="n">${m.a ? kmoney(m.a.adr) : '—'}</td><td class="n">${m.a ? kmoney(m.a.revpar) : '—'}</td><td class="n">${m.a ? kmoney(m.a.roomRev) : '—'}</td><td class="n">${m.a ? kmoney(m.a.fbRev) : '—'}</td><td class="n"><b>${m.a ? kmoney(m.a.totalRev) : '—'}</b></td><td class="n">${m.l ? `${kmoney(m.l.totalRev)} ${m.a ? chg(m.a.totalRev, m.l.totalRev) : ''}` : '—'}</td></tr>`).join('') || `<tr><td colspan="10" class="muted">Bu yıl için işlenmiş gün yok.</td></tr>`}</table></div></div>
+          <div class="scroll-x"><table class="tb perf-t"><tr><th>Ay</th><th class="n">Gün</th><th class="n">Doluluk</th><th class="n">Oda-gece</th><th class="n">Oda ADR<div class="sub">net · brüt</div></th><th class="n">Satış ADR<div class="sub">net · brüt</div></th><th class="n">RevPAR</th><th class="n">Oda geliri</th><th class="n">Kahvaltı</th><th class="n">Restoran / Y-İ</th><th class="n">Toplam gelir</th><th class="n">Toplam · geçen yıl</th></tr>
+          ${months.filter((m) => m.a || m.l).map((m) => `<tr><td>${esc(MONTHS[Number(m.m.slice(5)) - 1])}</td><td class="n">${m.a ? m.a.n / hotelsOf(h).length : 0}</td><td class="n">${m.a ? pct(m.a.occPct) : '—'}</td><td class="n">${m.a ? fmtNum(m.a.occ) : '—'}</td><td class="n">${m.a ? `${kmoney(m.a.adr)}<div class="sub">${kmoney(m.a.adrG)}</div>` : '—'}</td><td class="n">${m.a && m.a.sadr != null ? `${kmoney(m.a.sadr)}<div class="sub">${kmoney(m.a.sadrG)}</div>` : '—'}</td><td class="n">${m.a ? kmoney(m.a[mk('revpar')]) : '—'}</td><td class="n">${m.a ? kmoney(m.a[mk('roomRev')]) : '—'}</td><td class="n">${m.a && m.a.bfRev != null ? kmoney(m.a[G ? 'bfRevG' : 'bfRev']) : '—'}</td><td class="n">${m.a ? kmoney(m.a.restRev != null ? m.a[G ? 'restRevG' : 'restRev'] : m.a[mk('fbRev')]) : '—'}</td><td class="n"><b>${m.a ? kmoney(m.a[mk('totalRev')]) : '—'}</b></td><td class="n">${m.l ? `${kmoney(m.l[mk('totalRev')])} ${m.a ? chg(m.a[mk('totalRev')], m.l[mk('totalRev')]) : ''}` : '—'}</td></tr>`).join('') || `<tr><td colspan="11" class="muted">Bu yıl için işlenmiş gün yok.</td></tr>`}</table></div></div>
       </div></div>`;
   },
 };
 A.perfHotel = (el) => { S.perf.hotel = el.dataset.h; A._renderView(); };
+A.perfMode = (el) => { S.perf.mode = el.dataset.m; A._renderView(); };
 A.perfDate = (el) => { S.perf.date = el.value; A._renderView(); };
 A.perfReload = () => { loadPerf(true); toast('Veriler yenileniyor…'); A._renderView(); };
 A.perfSetup = () => {
@@ -189,8 +223,9 @@ A._perfSettingsCard = () => {
 };
 A.perfExcel = () => {
   const P = S.perf; if (!P.daily.length) return toast('Aktarılacak veri yok.');
-  const cols = [['hotel', 'Otel'], ['date', 'Tarih'], ['rooms', 'Oda kapasitesi'], ['occ', 'Satılan oda'], ['occPct', 'Doluluk %'], ['pax', 'Kişi'], ['arr', 'Giriş (oda)'], ['dep', 'Çıkış (oda)'], ['newRes', 'Yeni rezervasyon'], ['cxl', 'İptal'], ['adr', 'ADR'], ['revpar', 'RevPAR'], ['roomRev', 'Oda geliri'], ['fbRev', 'Yiyecek-içecek'], ['otherRev', 'Diğer gelir'], ['totalRev', 'Toplam gelir']];
-  const rows = sortBy(P.daily.filter((r) => hotelsOf(P.hotel || 'all').includes(r.hotel)), (r) => r.date + r.hotel).map((r) => cols.map(([k]) => (k === 'hotel' ? HOTELS[r.hotel] || r.hotel : r[k] == null ? '' : r[k])));
+  const cols = [['hotel', 'Otel'], ['date', 'Tarih'], ['rooms', 'Oda kapasitesi'], ['occ', 'Satılan oda'], ['occPct', 'Doluluk %'], ['pax', 'Kişi'], ['arr', 'Giriş (oda)'], ['dep', 'Çıkış (oda)'], ['newRes', 'Yeni rezervasyon'], ['cxl', 'İptal'], ['adr', 'Oda ADR net'], ['adrG', 'Oda ADR brüt'], ['sadr', 'Satış ADR net (oda+kahvaltı)'], ['sadrG', 'Satış ADR brüt (oda+kahvaltı)'], ['revpar', 'RevPAR net'], ['roomRev', 'Oda geliri net'], ['roomRevG', 'Oda geliri brüt'], ['bfRev', 'Kahvaltı net'], ['bfRevG', 'Kahvaltı brüt'], ['restRev', 'Restoran / Y-İ net (kahvaltı hariç)'], ['restRevG', 'Restoran / Y-İ brüt'], ['otherRev', 'Diğer gelir net'], ['totalRev', 'Toplam gelir net'], ['totalRevG', 'Toplam gelir brüt']];
+  const r2 = (v) => (v == null || Number.isNaN(v) ? '' : Math.round(v * 100) / 100);
+  const rows = sortBy(P.daily.filter((r) => hotelsOf(P.hotel || 'all').includes(r.hotel)), (r) => r.date + r.hotel).map((r) => { const a = Object.assign(sumRows([r]), { rooms: r.rooms, occPct: r.occPct }); return cols.map(([k]) => (k === 'hotel' ? HOTELS[r.hotel] || r.hotel : k === 'date' ? r.date : ['pax', 'arr', 'dep', 'newRes', 'cxl'].includes(k) ? (r[k] ?? '') : r2(a[k]))); });
   const ws = XLSX.utils.aoa_to_sheet([cols.map((c) => c[1]), ...rows]); ws['!cols'] = cols.map(([, l]) => ({ wch: Math.max(11, l.length + 2) }));
   const ot = XLSX.utils.aoa_to_sheet([['Otel', 'Rapor tarihi', 'Konaklama günü', 'Oda', 'Oda geliri'], ...sortBy(P.otb, (o) => o.hotel + o.date).map((o) => [HOTELS[o.hotel] || o.hotel, o.asOf, o.date, o.rooms, o.roomRev])]);
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Günlük'); XLSX.utils.book_append_sheet(wb, ot, 'Gelecek rezervasyonlar');
@@ -198,8 +233,8 @@ A.perfExcel = () => {
 };
 A.perfPrint = () => {
   const L = S.perfLast; if (!L) return;
-  const tr = (lab, a, l) => `<tr><td>${lab}</td>${METRICS.map(([k, , f, isP]) => `<td class="n">${a ? f(a[k]) : '—'}${l ? `<br><small>${f(l[k])} · ${chg(a && a[k], l[k], isP).replace(/<[^>]+>/g, '')}</small>` : ''}</td>`).join('')}</tr>`;
-  const html = `<div class="pdoc"><div class="ph"><b>${esc(S.settings.hotelName)}</b><span>${esc(fmtDate(today()))} · ${esc(S.user.name)}</span></div><h1>Otel performansı · ${esc(L.h === 'all' ? 'Ortunç + Elia' : HOTELS[L.h])}</h1><p class="sub">İş günü ${esc(fmtDate(L.d))} · gelirler net, ₺ · alt satır: geçen yıl</p>
+  const tr = (lab, a, l) => `<tr><td>${lab}</td>${METRICS.map(([k0, , f, isP]) => { const k = mk(k0); return `<td class="n">${a ? f(a[k]) : '—'}${l && l[k] != null ? `<br><small>${f(l[k])} · ${chg(a && a[k], l[k], isP).replace(/<[^>]+>/g, '')}</small>` : ''}</td>`; }).join('')}</tr>`;
+  const html = `<div class="pdoc"><div class="ph"><b>${esc(S.settings.hotelName)}</b><span>${esc(fmtDate(today()))} · ${esc(S.user.name)}</span></div><h1>Otel performansı · ${esc(L.h === 'all' ? 'Ortunç + Elia' : HOTELS[L.h])}</h1><p class="sub">İş günü ${esc(fmtDate(L.d))} · gelirler ${S.perf.mode === 'gross' ? 'brüt (vergiler dahil)' : 'net (vergiler hariç)'}, ₺ · ADR'ler net ve brüt · alt satır: geçen yıl</p>
     <table class="tb"><tr><th></th>${METRICS.map(([, l]) => `<th class="n">${l}</th>`).join('')}</tr>${tr('Gün', L.day, L.dly)}${tr('Ay başından', L.mtd, L.mly)}${tr('Yıl başından', L.ytd, L.yly)}</table>
     <h2>Aylık</h2><table class="tb"><tr><th>Ay</th><th class="n">Doluluk</th><th class="n">Oda-gece</th><th class="n">ADR</th><th class="n">Oda geliri</th><th class="n">Toplam gelir</th><th class="n">Geçen yıl toplam</th></tr>${L.months.filter((m) => m.a || m.l).map((m) => `<tr><td>${esc(MONTHS[Number(m.m.slice(5)) - 1])}</td><td class="n">${m.a ? pct(m.a.occPct) : '—'}</td><td class="n">${m.a ? fmtNum(m.a.occ) : '—'}</td><td class="n">${m.a ? kmoney(m.a.adr) : '—'}</td><td class="n">${m.a ? kmoney(m.a.roomRev) : '—'}</td><td class="n">${m.a ? kmoney(m.a.totalRev) : '—'}</td><td class="n">${m.l ? kmoney(m.l.totalRev) : '—'}</td></tr>`).join('')}</table></div>`;
   printHtml(`Otel-performansi-${L.d}`, html);
@@ -220,11 +255,11 @@ A._perfWidget = () => {
 A._perfDataset = () => ({
   label: 'Otel performansı (gece raporları)', dates: [['date', 'İş günü']],
   dims: () => [['hotel', 'Otel'], ['weekday', 'Hafta içi / sonu']],
-  metrics: () => ({ occPct: ['Doluluk %', 'p'], rn: ['Satılan oda (oda-gece)', 'n'], cap: ['Oda kapasitesi', 'n'], adr: ['ADR (net)', 'd'], revpar: ['RevPAR', 'd'], oda: ['Oda geliri', 'm'], fb: ['Yiyecek-içecek geliri', 'm'], other: ['Diğer gelir', 'm'], net: ['Toplam gelir (net)', 'm'], pax: ['Konaklayan kişi', 'n'], arr: ['Giriş (oda)', 'n'], newRes: ['Yeni rezervasyon', 'n'], cxl: ['İptal', 'n'], count: ['Gün sayısı', 'n'] }),
+  metrics: () => ({ occPct: ['Doluluk %', 'p'], rn: ['Satılan oda (oda-gece)', 'n'], cap: ['Oda kapasitesi', 'n'], adr: ['Oda ADR (net)', 'd'], adrG: ['Oda ADR (brüt)', 'd'], sadr: ['Satış ADR oda+kahvaltı (net)', 'd'], sadrG: ['Satış ADR oda+kahvaltı (brüt)', 'd'], revpar: ['RevPAR (net)', 'd'], oda: ['Oda geliri (net)', 'm'], odaG: ['Oda geliri (brüt)', 'm'], bf: ['Kahvaltı geliri (net)', 'm'], bfG: ['Kahvaltı geliri (brüt)', 'm'], fb: ['Yiyecek-içecek geliri (net)', 'm'], other: ['Diğer gelir', 'm'], net: ['Toplam gelir (net)', 'm'], netG: ['Toplam gelir (brüt)', 'm'], pax: ['Konaklayan kişi', 'n'], arr: ['Giriş (oda)', 'n'], newRes: ['Yeni rezervasyon', 'n'], cxl: ['İptal', 'n'], count: ['Gün sayısı', 'n'] }),
   rows: () => { loadPerf(); return S.perf.daily.map((r) => { const w = new Date(r.date + 'T12:00:00').getDay(); return {
     dates: { date: r.date }, dims: { hotel: HOTELS[r.hotel] || r.hotel, weekday: w === 5 || w === 6 ? 'Cuma-Cumartesi' : 'Pazar-Perşembe' },
-    amt: { oda: { TRY: r.roomRev || 0 }, fb: { TRY: r.fbRev || 0 }, other: { TRY: r.otherRev || 0 }, net: { TRY: r.totalRev || 0 } },
-    n: { rn: r.occ || 0, cap: r.rooms || 0, pax: r.pax || 0, arr: r.arr || 0, newRes: r.newRes || 0, cxl: r.cxl || 0, count: 1 }, ref: null }; }); },
+    amt: (() => { const a = sumRows([r]); return { oda: { TRY: a.roomRev || 0 }, odaG: { TRY: a.roomRevG || 0 }, bf: { TRY: a.bfRev || 0 }, bfG: { TRY: a.bfRevG || 0 }, fb: { TRY: a.fbRev || 0 }, other: { TRY: a.otherRev || 0 }, net: { TRY: a.totalRev || 0 }, netG: { TRY: a.totalRevG || 0 } }; })(),
+    n: { rn: r.occ || 0, cap: r.rooms || 0, pax: r.pax || 0, arr: r.arr || 0, newRes: r.newRes || 0, cxl: r.cxl || 0, count: 1, bfrn: r.bfRev != null && r.bfRev !== '' ? r.occ || 0 : 0 }, ref: null }; }); },
 });
 
 DS.perf = A._perfDataset();

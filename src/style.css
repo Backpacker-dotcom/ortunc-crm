@@ -365,3 +365,18 @@ h4.grp{margin:16px 2px 6px;font-size:13px;color:#3B4A63;font-weight:600}
 .nav>*{flex:none}
 .nav h5{margin:10px 10px 3px}
 .nav button{padding:6px 10px}
+
+/* bütçe düzenleyici */
+.bmodal{width:min(1280px,100%)}
+.bgrid td{padding:2px 3px}.bgrid th,.bgrid td:first-child{white-space:nowrap}
+.bgrid .inp{min-width:78px;padding:4px 6px;text-align:right;font-size:13px}
+.bgrid .inp.dl{background:#F3F7FB;border-style:dashed}
+.bgrid tr.bh th{background:#EEF2F7;text-align:left;font-size:13px}
+.bgrid tr.calc td{color:var(--primary);background:#FAFBFD}
+.bgrid tr.tot td{font-weight:600;border-top:2px solid var(--line)}
+.bgrid tr.g td{background:#F3F7FB}
+.bgrid.day tr.we td{background:#FBF8EF}
+.bgrid.day .inp{min-width:70px}
+.dayhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.dayhead .sp{flex:1}
+.kb em b.gb{font-size:12.5px;font-weight:600;font-family:inherit;color:#3B4A63;display:inline}
