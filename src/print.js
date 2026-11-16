@@ -81,7 +81,7 @@ const RECORD = {
     + revSec('weddings', w) + filesSec('weddings', w.id) + relSections('weddings', w.id); },
 };
 RECORD.blacklist = (b) => head(b.name, 'Kara liste') + sec('Bilgiler', kv([['Telefon', b.phone], ['E-posta', b.email], ['Sebep', (A._BL || {})[b.reason] || ''], ['Olay tarihi', fmtDate(b.date)], ['Oda / rez. no', b.room], ['Alacak', b.amount ? fmtNum(b.amount) : ''], ['Ne oldu?', b.detail], ['Ekleyen', b.addedByName]]));
-A.printRec = (el) => { const r = byId(el.dataset.col, el.dataset.id); if (!r) return; printHtml(`${COL_LABEL[el.dataset.col]}-${fname(recTitle(el.dataset.col, r))}`, wrap(RECORD[el.dataset.col](r))); };
+A.printRec = (el) => { const col = el.dataset.col; const r = byId(col, el.dataset.id); if (!r) return; const cf = A._cfPairs && RECORD[col] && col !== 'blacklist' ? A._cfPairs(col, r) : []; let body = RECORD[col](r); if (cf.length) { const j = body.indexOf('<h2>', body.indexOf('<h2>') + 4); const extra = sec('Ek alanlar', kv(cf)); body = j > 0 ? body.slice(0, j) + extra + body.slice(j) : body + extra; } printHtml(`${COL_LABEL[col]}-${fname(recTitle(col, r))}`, wrap(body)); };
 
 const filterNote = () => [S.q ? `Arama: "${S.q}"` : '', ...Object.values(S.f).filter(Boolean).map(String)].filter(Boolean).join(' · ');
 const LISTS = {

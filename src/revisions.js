@@ -1,5 +1,5 @@
 // Teklif revizyonu: mevcut fiyatlar saklanır, yeni fiyat girilir; geçmiş ve fark görünür.
-import { S, A, $, esc, ic, today, addDays, fmtDate, iso, byId, recTitle, toast, stamp, can, openForm, recTotals, moneyMap, priceRows, revNo, prevRev, revRec, itemsOf, calcItems, num, money } from './core.js';
+import { S, A, $, esc, ic, today, addDays, fmtDate, iso, byId, recTitle, toast, stamp, can, openForm, recTotals, moneyMap, priceRows, revNo, prevRev, revRec, itemsOf, itemsForForm, calcItems, num, money } from './core.js';
 import { itemsField } from './forms.js';
 
 const snap = (col, r) => ({
@@ -14,7 +14,7 @@ A.revise = (el) => {
   openForm({
     title: `Teklifi revize et · Rev. ${n} → Rev. ${n + 1}`, wide: true, saveLabel: 'Revizeyi kaydet',
     intro: `<div class="banner" style="margin:0 0 12px;background:var(--gold-soft)"><span>Şu anki teklif <b>Rev. ${n}</b> olarak saklanacak: <b>${esc(moneyMap(recTotals(col, r)))}</b>. Yeni fiyatları aşağıda düzenleyin; eski teklif kayıtta ve istenirse teklif çıktısında görünür.</span></div>`,
-    data: { note: '', items: itemsOf(col, r), deposit: r.deposit ?? '', validUntil: addDays(today(), 10), guests: r.guests, pax: r.pax, rooms: r.rooms, start: r.start, end: r.end, date: r.date },
+    data: { note: '', items: itemsForForm(col, r), deposit: r.deposit ?? '', validUntil: addDays(today(), 10), guests: r.guests, pax: r.pax, rooms: r.rooms, start: r.start, end: r.end, date: r.date },
     fields: [
       { k: 'note', label: 'Revize nedeni', req: true, ph: col === 'weddings' ? 'ör. Çift kişi başı fiyatta indirim istedi; davetli 150\'den 180\'e çıktı' : 'ör. Firma oda fiyatında indirim istedi; coffee break sayısı arttı' },
       ...(col === 'weddings' ? [{ k: 'guests', label: 'Davetli sayısı', type: 'number', half: true }] : [{ k: 'pax', label: 'Kişi sayısı', type: 'number', half: true }, { k: 'rooms', label: 'Oda sayısı', type: 'number', half: true }]),

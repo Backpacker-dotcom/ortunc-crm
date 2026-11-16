@@ -1,7 +1,7 @@
 import {
   House, Building2, Users, Handshake, Heart, ListChecks, CalendarDays, ChartColumn, Settings, Plus, Search, X, Phone, Mail,
   MessageCircle, Check, ChevronLeft, ChevronRight, Printer, Download, Upload, Pencil, Menu, MapPin, StickyNote,
-  Presentation, Share2, LogOut, Briefcase, Flag, Cake, TriangleAlert, Copy, BedDouble, Ban,
+  Presentation, Share2, LogOut, Briefcase, Flag, Cake, TriangleAlert, Copy, BedDouble, Ban, SlidersHorizontal, TrendingUp, TrendingDown, ArrowUpDown, Columns3, Table2, LayoutGrid, Target,
 } from 'lucide';
 
 const ICONS = {
@@ -9,7 +9,7 @@ const ICONS = {
   chart: ChartColumn, settings: Settings, plus: Plus, search: Search, x: X, phone: Phone, mail: Mail, wa: MessageCircle,
   check: Check, left: ChevronLeft, right: ChevronRight, printer: Printer, download: Download, upload: Upload, pencil: Pencil,
   menu: Menu, pin: MapPin, note: StickyNote, meeting: Presentation, share: Share2, logout: LogOut, briefcase: Briefcase,
-  flag: Flag, cake: Cake, warn: TriangleAlert, copy: Copy, bed: BedDouble, ban: Ban,
+  flag: Flag, cake: Cake, warn: TriangleAlert, copy: Copy, bed: BedDouble, ban: Ban, sliders: SlidersHorizontal, up: TrendingUp, down: TrendingDown, sort: ArrowUpDown, cols: Columns3, table: Table2, grid: LayoutGrid, target: Target,
 };
 export const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${(ICONS[n] || []).map(([t, a]) => `<${t} ${Object.entries(a).map(([k, v]) => `${k}="${v}"`).join(' ')}/>`).join('')}</svg>`;
 
@@ -36,6 +36,8 @@ export const DEFAULT_SETTINGS = {
   hotelName: 'Ortunç Otel',
   properties: ['Ortunç Otel', 'Elia Otel', 'Elia Antique', 'Elia Antique House', 'Ortunç Restoran'],
   sources: ['Telefon', 'E-posta', 'Web sitesi', 'Instagram', 'Tavsiye', 'Acente', 'Fuar', 'Otele gelen'],
+  segments: ['Kurumsal', 'MICE / toplantı', 'Tur operatörü / grup', 'Bireysel (FIT)', 'OTA', 'Düğün & sosyal etkinlik', 'Kamu', 'Spor / kültür grubu', 'Diğer'],
+  channels: ['Direkt (telefon / e-posta)', 'Web sitesi', 'Acente', 'Tur operatörü', 'OTA', 'GDS', 'Kurumsal anlaşma', 'Sosyal medya', 'Fuar'],
   phone: '', email: '', address: '',
   offerNote: 'Teklifimiz belirtilen geçerlilik tarihine kadar geçerlidir. Tarih, kapora ödemesi ile kesinleşir. Fiyatlara KDV dahildir.',
 };
@@ -43,7 +45,7 @@ export const DEFAULT_SETTINGS = {
 /* ---------- durum ---------- */
 export const S = {
   store: null, gate: 'loading', gateInfo: {}, user: null, view: 'pano', q: '', f: {},
-  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], blacklist: [], users: [] },
+  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], blacklist: [], reports: [], users: [] },
   settings: { ...DEFAULT_SETTINGS }, sheet: null, calMonth: null, repYear: new Date().getFullYear(),
 };
 export const A = {}; // eylemler (data-act)
@@ -109,13 +111,16 @@ const kvFix = (v) => (!(S.settings.tax && S.settings.tax.v2) && Number(v) === 2 
 export const KDV_OPTS = [['0', 'Yok'], ['1', '%1'], ['10', '%10'], ['20', '%20']];
 export const kvOpts = () => [['0', 'Yok'], [String(taxCfg().kv), `%${taxCfg().kv}`]];
 export const MODE_OPTS = [['dahil', 'Dahil'], ['ekle', 'Eklenecek']];
+export const DEPTS = [['oda', 'Oda'], ['yi', 'Yiyecek-içecek'], ['salon', 'Salon / MICE'], ['diger', 'Diğer']];
+export const DEPT_LABEL = Object.fromEntries(DEPTS);
+export const deptOf = (it) => it.dept || (num(it.kv) > 0 || /konaklama|oda|room/i.test(it.name || '') ? 'oda' : /salon|toplantı|meeting|ekipman|teknik/i.test(it.name || '') ? 'salon' : /yemek|menü|kahvaltı|coffee|içecek|kokteyl|pasta|ikram|büfe|gala/i.test(it.name || '') ? 'yi' : 'diger');
 export const QTY_RULES = [['kisi_gun', 'Kişi × gün'], ['kisi_gece', 'Kişi × gece'], ['kisi', 'Kişi sayısı'], ['oda_gece', 'Oda × gece'], ['gun', 'Gün sayısı'], ['gece', 'Gece sayısı'], ['adet', '1 adet']];
-const P = (id, name, rule, kdv, kv = 0, price = '') => ({ id, name, rule, kdv, kv, price, cur: 'TRY', mode: '' });
+const P = (id, name, rule, kdv, kv = 0, price = '', dept = '') => ({ id, name, rule, kdv, kv, price, cur: 'TRY', mode: '', dept });
 export const DEFAULT_PRESETS = {
-  opps: [P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 1), P('coffee', 'Coffee break (kişi başı)', 'kisi_gun', 10), P('ogle', 'Öğle yemeği (kişi başı)', 'kisi_gun', 10),
-    P('aksam', 'Akşam yemeği (kişi başı)', 'kisi_gece', 10), P('salonyarim', 'Toplantı salonu · yarım gün', 'gun', 20), P('salontam', 'Toplantı salonu · tam gün', 'gun', 20), P('ozel', '', 'adet', 20)],
-  weddings: [P('menu', 'Menü (kişi başı)', 'kisi', 10), P('icecek', 'İçecek paketi (kişi başı)', 'kisi', 20), P('susleme', 'Süsleme ve çiçek', 'adet', 20), P('muzik', 'Müzik / DJ', 'adet', 20),
-    P('pasta', 'Düğün pastası', 'adet', 10), P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 1), P('ozel', '', 'adet', 20)],
+  opps: [P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 1, '', 'oda'), P('coffee', 'Coffee break (kişi başı)', 'kisi_gun', 10, 0, '', 'yi'), P('ogle', 'Öğle yemeği (kişi başı)', 'kisi_gun', 10, 0, '', 'yi'),
+    P('aksam', 'Akşam yemeği (kişi başı)', 'kisi_gece', 10, 0, '', 'yi'), P('salonyarim', 'Toplantı salonu · yarım gün', 'gun', 20, 0, '', 'salon'), P('salontam', 'Toplantı salonu · tam gün', 'gun', 20, 0, '', 'salon'), P('ozel', '', 'adet', 20, 0, '', 'diger')],
+  weddings: [P('menu', 'Menü (kişi başı)', 'kisi', 10, 0, '', 'yi'), P('icecek', 'İçecek paketi (kişi başı)', 'kisi', 20, 0, '', 'yi'), P('susleme', 'Süsleme ve çiçek', 'adet', 20, 0, '', 'diger'), P('muzik', 'Müzik / DJ', 'adet', 20, 0, '', 'diger'),
+    P('pasta', 'Düğün pastası', 'adet', 10, 0, '', 'yi'), P('konaklama', 'Konaklama (oda × gece)', 'oda_gece', 10, 1, '', 'oda'), P('ozel', '', 'adet', 20, 0, '', 'diger')],
 };
 export const presetsOf = (col) => ((S.settings.presets && S.settings.presets[col]) || DEFAULT_PRESETS[col]).map((p) => ({ ...p, kv: kvFix(p.kv) }));
 export const presetLabel = (p) => p.name || 'Özel kalem';
@@ -125,6 +130,7 @@ export function ruleQty(rule, get) {
   const days = n + 1, nights = Math.max(1, n);
   return ({ kisi_gun: pax * days, kisi_gece: pax * nights, kisi: pax, oda_gece: rooms * nights, gun: days, gece: nights, adet: 1 })[rule] || '';
 }
+export const itemsForForm = (col, r) => itemsOf(col, r).map((it) => ({ ...it, dept: deptOf(it) }));
 export function itemsOf(col, r) {
   if (Array.isArray(r.items) && r.items.length) return r.items;
   const c = r.currency || 'TRY';
@@ -159,6 +165,18 @@ export function calcItems(items, fallbackQty) {
   return { lines, by, curs, main: curs[0] || 'TRY' };
 }
 export const recCalc = (col, r) => calcItems(itemsOf(col, r), col === 'weddings' ? r.guests : 1);
+// Otelcilik ölçüleri: oda-gece, departman gelirleri (vergiler hariç), ADR
+const nightsOf = (a, b) => (a && b ? Math.max(0, Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5)) : 0);
+export function recMetrics(col, r) {
+  const c = recCalc(col, r); const dep = {}; let rn = 0;
+  c.lines.forEach((l) => { const d = deptOf(l); const m = dep[d] || (dep[d] = {}); m[l.cur] = (m[l.cur] || 0) + l.net; if (d === 'oda') rn += l.qty; });
+  const legacy = !(Array.isArray(r.items) && r.items.length);
+  if (col === 'opps' && (legacy || !rn)) rn = num(r.rooms) * Math.max(1, nightsOf(r.start, r.end));
+  else if (legacy) rn = 0;
+  const adr = {}; if (rn && dep.oda) Object.keys(dep.oda).forEach((k) => { adr[k] = dep.oda[k] / rn; });
+  const net = {}; c.curs.forEach((k) => { net[k] = c.by[k].net; });
+  return { roomNights: rn, dept: dep, adr, net, gross: Object.fromEntries(c.curs.map((k) => [k, c.by[k].gross])), main: c.main };
+}
 export const recTotals = (col, r) => { const c = recCalc(col, r); return Object.fromEntries(c.curs.map((k) => [k, c.by[k].gross])); };
 // Teklif tablosu için satırlar (tüm çıktılar bunu kullanır)
 // Revizyonlar: r.revisions = [{ no, at, by, note, items, deposit, guests, pax, rooms, start, end, date, validUntil, totals }]
@@ -316,7 +334,7 @@ A.itemPreset = (el) => {
   const f = formCtx.fields.find((x) => x.k === el.dataset.k); const p = f.presets[Number(el.dataset.i)]; const frm = $('#frm');
   const get = (k) => (frm.elements[k] ? frm.elements[k].value : '');
   const t = taxCfg(); const q = ruleQty(p.rule, get);
-  addRowWith(f.k, { name: p.name, qty: q === '' || q === 0 ? '' : q, price: p.price === '' || p.price == null ? '' : p.price, cur: p.cur || 'TRY', kdv: String(p.kdv ?? t.kdv), kv: String(p.kv ?? 0), mode: p.mode || t.mode });
+  addRowWith(f.k, { name: p.name, qty: q === '' || q === 0 ? '' : q, price: p.price === '' || p.price == null ? '' : p.price, cur: p.cur || 'TRY', kdv: String(p.kdv ?? t.kdv), kv: String(p.kv ?? 0), mode: p.mode || t.mode, dept: p.dept || deptOf(p) });
 };
 
 export function infoModal(title, html, footer = '') {

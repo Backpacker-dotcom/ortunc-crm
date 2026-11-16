@@ -2,14 +2,17 @@ import {
   S, A, V, $, $$, esc, ic, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, ACT_ICON, ROLES, STAGE_BADGE,
   today, addDays, iso, MONTHS, MON3, fmtDate, fmtDateLong, fmtRange, money, moneyMap, sumByCur, num, fmtNum, match, initials, waNum,
   byId, userName, stageLabel, sortBy, wedTotal, recTitle, related, relTasks, lastContact, can, toast, stamp, errText, COL_LABEL, openForm, EINV, copyText,
-  occasionsOn, guestOccasions, nextOccurrence, yearsSince, priceRows, recTotals,
+  occasionsOn, guestOccasions, nextOccurrence, yearsSince, priceRows, recTotals, recMetrics,
 } from './core.js';
 import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, refLabel } from './forms.js';
 
-export const NAV = [
-  ['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban'], ['opps', 'Grup & Etkinlik', 'handshake'],
-  ['weddings', 'Düğün Teklifleri', 'heart'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar'], ['reports', 'Raporlar', 'chart'], ['settings', 'Ayarlar', 'settings'],
+export const NAV_GROUPS = [
+  ['Genel', [['pano', 'Pano', 'house'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar']]],
+  ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart']]],
+  ['Misafir', [['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban']]],
+  ['Analiz', [['reports', 'Genel raporlar', 'chart'], ['builder', 'Rapor oluşturucu', 'sliders']]],
 ];
+export const NAV = [...NAV_GROUPS.flatMap((g) => g[1]), ['settings', 'Ayarlar', 'settings']];
 const TABS = [['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['opps', 'Talepler', 'handshake'], ['weddings', 'Düğün', 'heart']];
 
 const D = () => S.data;
@@ -24,19 +27,34 @@ const searchBox = (ph) => `<label class="search">${ic('search')}<input type="sea
 const dateBox = (s) => { if (!s) return '<div class="datebox"><b>—</b><span>tarih</span></div>'; const [y, m, d] = s.split('-').map(Number); return `<div class="datebox"><b>${d}</b><span>${MON3[m - 1]} ${String(y).slice(2)}</span></div>`; };
 
 /* ================= kabuk ================= */
+const brandMark = () => (S.settings.brand && S.settings.brand.logo ? `<img src="${esc(S.settings.brand.logo)}" alt="">` : `<span class="mark">${esc(initials(S.settings.hotelName))}</span>`);
+export function applyBrand() {
+  const c = (S.settings.brand && S.settings.brand.color) || '#1F5E8C';
+  const r = document.documentElement.style; r.setProperty('--primary', c);
+  const hex = c.replace('#', ''); const n = parseInt(hex.length === 3 ? hex.split('').map((x) => x + x).join('') : hex, 16);
+  const rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; const mix = (t) => '#' + rgb.map((v) => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')).join('');
+  r.setProperty('--primary-soft', mix(0.9)); r.setProperty('--primary-line', mix(0.72));
+}
 export function renderShell() {
+  applyBrand();
   const od = overdue().length;
   const navBtn = ([k, l, i]) => `<button class="${S.view === k ? 'on' : ''}" data-act="nav" data-v="${k}">${ic(i)}<span>${l}</span>${k === 'tasks' && od ? `<span class="badge red">${od}</span>` : ''}</button>`;
   $('#app').innerHTML = `
-    <aside class="side"><div class="brand"><b>${esc(S.settings.hotelName)}</b><span>Müşteri İlişkileri</span></div>
-      <nav class="nav">${NAV.map(navBtn).join('')}</nav>
-      <div class="who"><b>${esc(S.user.name)}</b>${esc(ROLES[S.user.role] || '')}${S.store.kind === 'local' ? ' · demo' : ''}<br>${S.store.kind === 'firebase' ? '<button data-act="logout">Çıkış yap</button>' : ''}</div>
+    <aside class="side"><div class="brand">${brandMark()}<div><b>${esc(S.settings.hotelName)}</b><span>Satış ve misafir ilişkileri</span></div></div>
+      <nav class="nav">${NAV_GROUPS.map(([g, items]) => `<h5>${g}</h5>${items.map(navBtn).join('')}`).join('')}<h5></h5>${navBtn(['settings', 'Ayarlar', 'settings'])}</nav>
+      <div class="who"><span class="av">${esc(initials(S.user.name))}</span><div><b>${esc(S.user.name)}</b>${esc(ROLES[S.user.role] || '')}${S.store.kind === 'local' ? ' · demo' : ''}</div>${S.store.kind === 'firebase' ? `<button data-act="logout" title="Çıkış yap" aria-label="Çıkış yap">${ic('logout')}</button>` : ''}</div>
     </aside>
-    <main><div id="view"></div></main>
+    <div class="mainwrap">
+      <header class="topbar"><button class="gsearch" data-act="gsOpen">${ic('search')}<span>Ara: misafir, acente, teklif, telefon…</span><kbd>Ctrl K</kbd></button><span class="sp"></span>
+        <div class="qwrap"><button class="btn pri" data-act="qaToggle">${ic('plus')}<span class="hide-m"> Yeni</span></button><div id="qaPop"></div></div></header>
+      <main><div id="view"></div></main>
+    </div>
     <nav class="tabbar">${TABS.map(([k, l, i]) => `<button class="${S.view === k ? 'on' : ''}" data-act="nav" data-v="${k}">${ic(i)}${l}</button>`).join('')}
       <button class="${TABS.some((t) => t[0] === S.view) ? '' : 'on'}" data-act="menu">${ic('menu')}Menü</button></nav>`;
   renderView();
 }
+const QA = [['newOpp', 'Grup / etkinlik talebi', 'handshake', 'opps'], ['newWedding', 'Düğün teklifi', 'heart', 'weddings'], ['newAccount', 'Acente / firma', 'building', 'accounts'], ['newGuest', 'Misafir', 'users', 'guests'], ['newActivity', 'Aktivite (ziyaret, arama…)', 'briefcase', 'activities'], ['newTask', 'Görev / takip', 'list', 'tasks']];
+A.qaToggle = () => { const p = $('#qaPop'); if (p.innerHTML) { p.innerHTML = ''; return; } p.innerHTML = `<div class="pop">${QA.filter((q) => can.edit(q[3])).map(([a, l, i]) => `<button data-act="${a}" data-qa="1">${ic(i)} ${l}</button>`).join('')}</div>`; };
 export function renderView() {
   const v = V[S.view] || V.pano;
   $('#view').innerHTML = `<div class="head"><h1>${esc(v.title())}</h1>${v.head ? v.head() : ''}</div>${v.chips ? `<div class="chips">${v.chips()}</div>` : ''}<div id="body"></div>`;
@@ -65,7 +83,7 @@ A._renderView = () => renderView();
 A.nav = (el) => { S.view = el.dataset.v; S.q = ''; S.f = {}; S.sheet = null; $('#modal').innerHTML = ''; renderSheet(); renderShell(); window.scrollTo(0, 0); };
 A.menu = () => {
   $('#modal').innerHTML = `<div class="ov center"><div class="modal"><div class="mh"><h2>Menü</h2><button class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div>
-    <div class="mb"><div class="menu-grid grid g2">${NAV.map(([k, l, i]) => `<button class="btn" data-act="nav" data-v="${k}">${ic(i)} ${l}</button>`).join('')}</div>
+    <div class="mb"><div class="menu-grid">${NAV_GROUPS.map(([g, items]) => `<h5>${g}</h5>${items.map(([k, l, i]) => `<button class="btn" data-act="nav" data-v="${k}">${ic(i)} ${l}</button>`).join('')}`).join('')}<h5></h5><button class="btn" data-act="nav" data-v="settings">${ic('settings')} Ayarlar</button></div>
     <p class="muted" style="margin:14px 0 0">${esc(S.user.name)} · ${esc(ROLES[S.user.role] || '')}</p></div>
     ${S.store.kind === 'firebase' ? `<div class="mf"><button class="btn" data-act="logout">${ic('logout')} Çıkış yap</button></div>` : ''}</div></div>`;
 };
@@ -131,9 +149,44 @@ const actItem = (a, showRef) => `<div class="it"><div class="dot">${ic(ACT_ICON[
   <b>${esc(a.subject)}</b><small>${esc(ACT_TYPES[a.type] || '')} · ${fmtDate(a.date)} · ${esc(a.userName || '')}${showRef && a.ref ? ` · <a href="#" data-act="open" data-col="${a.ref.col}" data-id="${a.ref.id}">${esc(refLabel(a))}</a>` : ''}</small>
   ${a.note ? `<p>${esc(a.note)}</p>` : ''}</div>${can.admin() || a.userId === S.user.uid ? `<button class="x" data-act="editAct" data-id="${a.id}" aria-label="Düzenle">${ic('pencil')}</button>` : ''}</div>`;
 
+/* ---------- pano yardımcıları ---------- */
+const WON = (col, r) => r.stage === (col === 'opps' ? 'kazanildi' : 'sozlesme');
+const evDate = (col, r) => (col === 'opps' ? r.start : r.date) || '';
+function salesBy(yearStr, uptoMD) {
+  // seçilen yılda (isteğe bağlı: yılın belirli gününe kadar) kesinleşen satışlar, etkinlik tarihine göre, TRY
+  const months = Array(12).fill(0); let rev = 0, rn = 0, roomRev = 0;
+  ['opps', 'weddings'].forEach((col) => D()[col].forEach((r) => {
+    if (!WON(col, r)) return; const d = evDate(col, r); if (!d.startsWith(yearStr)) return; if (uptoMD && d.slice(5) > uptoMD) return;
+    const m = recMetrics(col, r); const v = (m.net || {}).TRY || 0; rev += v; months[Number(d.slice(5, 7)) - 1] += v; rn += m.roomNights || 0; roomRev += ((m.dept.oda || {}).TRY || 0);
+  }));
+  return { months, rev, rn, adr: rn ? roomRev / rn : 0 };
+}
+const delta = (a, b) => { if (!b) return '<em>geçen yıl veri yok</em>'; const p = ((a - b) / Math.abs(b)) * 100; return `<em class="${p >= 0 ? 'up' : 'dn'}">${ic(p >= 0 ? 'up' : 'down')} ${p >= 0 ? '+' : ''}${p.toFixed(1).replace('.', ',')}% geçen yıla göre</em>`; };
+const spark = (arr, cls = '') => { const max = Math.max(1, ...arr); const w = 120, h = 30; const pts = arr.map((v, i) => `${(i * w) / (arr.length - 1)},${h - 2 - (v / max) * (h - 4)}`).join(' '); return `<svg class="spark ${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`; };
+const shortMoney = (v) => (Math.abs(v) >= 1e6 ? `₺${(v / 1e6).toFixed(2).replace('.', ',')} mn` : Math.abs(v) >= 1e4 ? `₺${fmtNum(v / 1000)} bin` : money(v));
+function monthlyChart(cur, prev) {
+  const max = Math.max(1, ...cur, ...prev); const W = 720, H = 210, pb = 26, pt = 10, cw = W / 12; const y = (v) => pt + (H - pt - pb) * (1 - v / max);
+  let s = ''; for (let i = 0; i <= 3; i++) { const yy = pt + ((H - pt - pb) * i) / 3; s += `<line x1="0" x2="${W}" y1="${yy}" y2="${yy}" stroke="#E2E7EF"/>`; }
+  cur.forEach((v, i) => { const x = cw * i + cw / 2; s += `<rect x="${x - 15}" y="${y(prev[i])}" width="13" height="${H - pb - y(prev[i])}" fill="#CBD5E2" rx="2"><title>${MON3[i]} geçen yıl: ${money(prev[i])}</title></rect><rect x="${x + 1}" y="${y(v)}" width="13" height="${H - pb - y(v)}" fill="var(--primary)" rx="2"><title>${MON3[i]}: ${money(v)}</title></rect><text x="${x}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#69768D">${MON3[i]}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:240px" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Aylık kesinleşen gelir grafiği">${s}</svg>`;
+}
+export const DASH_WIDGETS = [['monthly', 'Aylık kesinleşen gelir'], ['due', 'Takipler · 7 gün'], ['events', 'Yaklaşan etkinlikler'], ['funnel', 'Grup & etkinlik hunisi'], ['segments', 'Segment dağılımı'], ['special', 'Misafir özel günleri'], ['attention', 'Dikkat (kontrat, temas)'], ['acts', 'Son aktiviteler']];
+const dashCfg = () => { try { const c = JSON.parse(localStorage.getItem('ortunc-crm.dash') || 'null'); if (c && Array.isArray(c.order)) { DASH_WIDGETS.forEach(([k]) => { if (!c.order.includes(k)) c.order.push(k); }); return c; } } catch (e) { /* yok */ } return { order: DASH_WIDGETS.map((w) => w[0]), hidden: [] }; };
+A.dashEdit = () => {
+  const c = dashCfg(); const lbl = Object.fromEntries(DASH_WIDGETS);
+  $('#modal').innerHTML = `<div class="ov center"><div class="modal sm"><div class="mh"><h2>Panoyu düzenle</h2><button class="x" data-act="closeModal" aria-label="Kapat">${ic('x')}</button></div><div class="mb"><p class="muted" style="margin-top:0">Göstermek istediğiniz bölümleri işaretleyin ve sıralayın. Bu ayar bu cihazda saklanır.</p>
+    <div class="rows">${c.order.map((k, i) => `<div class="subrow" style="grid-template-columns:auto 1fr auto auto"><input type="checkbox" data-dw="${k}" ${c.hidden.includes(k) ? '' : 'checked'} style="width:18px;height:18px"><span>${esc(lbl[k])}</span><button class="btn sm" data-act="dashMove" data-i="${i}" data-d="-1" ${i ? '' : 'disabled'} aria-label="Yukarı">↑</button><button class="btn sm" data-act="dashMove" data-i="${i}" data-d="1" ${i < c.order.length - 1 ? '' : 'disabled'} aria-label="Aşağı">↓</button></div>`).join('')}</div></div>
+    <div class="mf"><button class="btn sp" data-act="dashReset">Varsayılan</button><button class="btn pri" data-act="dashSave">Kaydet</button></div></div></div>`;
+};
+const dashWrite = (c) => { try { localStorage.setItem('ortunc-crm.dash', JSON.stringify(c)); } catch (e) { /* yok */ } };
+A.dashMove = (el) => { const c = dashCfg(); c.hidden = $$('[data-dw]').filter((x) => !x.checked).map((x) => x.dataset.dw); const i = Number(el.dataset.i), j = i + Number(el.dataset.d); [c.order[i], c.order[j]] = [c.order[j], c.order[i]]; dashWrite(c); A.dashEdit(); };
+A.dashSave = () => { const c = dashCfg(); c.hidden = $$('[data-dw]').filter((x) => !x.checked).map((x) => x.dataset.dw); dashWrite(c); closeModalV(); A._renderView(); };
+A.dashReset = () => { dashWrite({ order: DASH_WIDGETS.map((w) => w[0]), hidden: [] }); A.dashEdit(); };
+const closeModalV = () => { $('#modal').innerHTML = ''; };
+
 V.pano = {
   title: () => 'Pano',
-  head: () => `<button class="btn" data-act="printPage" data-title="Pano" title="Yazdır / PDF">${ic('printer')}</button>${can.edit('activities') ? `<button class="btn" data-act="newActivity">${ic('plus')} Aktivite</button>` : ''}${can.edit('tasks') ? `<button class="btn" data-act="newTask">${ic('plus')} Görev</button>` : ''}`,
+  head: () => `<button class="btn" data-act="dashEdit" title="Panoyu düzenle">${ic('grid')}<span class="hide-m"> Düzenle</span></button><button class="btn" data-act="printPage" data-title="Pano" title="Yazdır / PDF">${ic('printer')}</button>`,
   body: () => {
     const t = today(), y = t.slice(0, 4);
     const oo = openOpps(), od = overdue();
@@ -146,27 +199,40 @@ V.pano = {
     const cold = sortBy(D().accounts.filter((a) => a.status === 'aktif').map((a) => ({ a, lc: lastContact(a.id) })).filter((x) => !x.lc || x.lc < addDays(t, -60)), (x) => x.lc || '').slice(0, 6);
     const acts = sortBy(D().activities, (a) => a.date + String(a.createdAt || ''), -1).slice(0, 7);
     const isEmpty = !D().accounts.length && !D().guests.length && !D().opps.length && !D().weddings.length;
+    const yr = Number(y), md = t.slice(5);
+    const cy = salesBy(String(yr)), cyTd = salesBy(String(yr), md), ly = salesBy(String(yr - 1)), lyTd = salesBy(String(yr - 1), md);
+    const openAll = [...D().opps.filter((o) => !['kazanildi', 'kaybedildi'].includes(o.stage)).map((o) => ['opps', o]), ...D().weddings.filter((w) => !['sozlesme', 'kaybedildi'].includes(w.stage)).map((w) => ['weddings', w])];
+    const pipe = openAll.reduce((s, [c, r]) => s + (recTotals(c, r).TRY || 0), 0);
+    const since = addDays(t, -365); let won12 = 0, lost12 = 0;
+    ['opps', 'weddings'].forEach((col) => D()[col].forEach((r) => { const d = iso(new Date(r.stageAt || r.updatedAt || r.createdAt || 0)); if (d < since) return; if (WON(col, r)) won12++; else if (r.stage === 'kaybedildi') lost12++; }));
+    const segs = {}; ['opps', 'weddings'].forEach((col) => D()[col].forEach((r) => { if (!WON(col, r) || !evDate(col, r).startsWith(y)) return; const k = r.segment || 'Belirtilmemiş'; segs[k] = (segs[k] || 0) + ((recMetrics(col, r).net || {}).TRY || 0); }));
+    const segList = sortBy(Object.entries(segs), (e) => e[1], -1); const segMax = Math.max(1, ...segList.map((e) => e[1]));
+    const W = {
+      monthly: `<div class="card pad" style="grid-column:1/-1"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><h3 style="margin:0">Aylık kesinleşen gelir · ${y}</h3><span class="muted" style="font-size:12.5px">vergiler hariç, ₺, etkinlik tarihine göre · gri: ${yr - 1}</span><button class="btn sm" style="margin-left:auto" data-act="nav" data-v="builder">${ic('sliders')} Rapor oluşturucuda aç</button></div>${monthlyChart(cy.months, ly.months)}</div>`,
+      due: `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Takipler · 7 gün</h3></div>${due.length ? `<div class="list">${due.map(taskRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan takip yok.</div>'}</div>`,
+      events: `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yaklaşan etkinlikler · 45 gün</h3></div>${ev.length ? `<div class="list">${ev.map(evRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan etkinlik yok.</div>'}</div>`,
+      funnel: `<div class="card pad"><h3>Grup & etkinlik hunisi</h3><div class="bars">${OPP_STAGES.map(([k, l]) => { const li = D().opps.filter((o) => o.stage === k); return `<div class="bar"><span>${l}</span><div class="tr"><i class="${k === 'kazanildi' ? 'olive' : k === 'kaybedildi' ? 'red' : ''}" style="width:${(li.length / max) * 100}%"></i></div><span class="v">${li.length} · ${moneyMap(sumByCur(li, (o) => num(o.value)))}</span></div>`; }).join('')}</div></div>`,
+      segments: `<div class="card pad"><h3>Segment dağılımı · ${y} kesinleşen</h3>${segList.length ? `<div class="bars">${segList.map(([k, v]) => `<div class="bar"><span title="${esc(k)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k)}</span><div class="tr"><i style="width:${(v / segMax) * 100}%"></i></div><span class="v">${shortMoney(v)}</span></div>`).join('')}</div>` : '<span class="muted">Bu yıl kesinleşen satış yok.</span>'}</div>`,
+      special: `<div class="card"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Misafir özel günleri · 21 gün</h3><button class="btn sm" data-act="nav" data-v="cel">${ic('cake')} Kutlamalar</button></div>${sp.length ? `<div class="list">${sp.map((x) => `<div class="row"><div class="av terra">${ic('cake')}</div><button class="t" style="border:0;background:none;text-align:left;padding:0" data-act="open" data-col="guests" data-id="${x.g.id}"><b>${esc(x.g.name)}</b><span>${esc(x.label)} · ${fmtDate(x.date)}</span></button><div class="r">${x.diff === 0 ? '<span class="badge terra">Bugün</span>' : x.diff + ' gün'}</div>${x.diff <= 1 ? `<button class="btn sm" data-act="cardOpen" data-g="${x.g.id}" data-k="${x.o.key}" data-d="${x.date}">Kart</button>` : ''}</div>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan özel gün yok.</div>'}</div>`,
+      attention: `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Dikkat</h3></div>${endC.length || cold.length ? `<div class="list">
+        ${endC.map((a) => `<button class="row" data-act="open" data-col="accounts" data-id="${a.id}"><div class="av terra">${ic('warn')}</div><div class="t"><b>${esc(a.name)}</b><span>Kontrat ${fmtDate(a.contractEnd)} tarihinde bitiyor</span></div></button>`).join('')}
+        ${cold.map((x) => `<button class="row" data-act="open" data-col="accounts" data-id="${x.a.id}"><div class="av">${esc(initials(x.a.name))}</div><div class="t"><b>${esc(x.a.name)}</b><span>${x.lc ? 'Son temas ' + fmtDate(x.lc) : 'Henüz temas kaydı yok'}</span></div><div class="r"><span class="badge gold">60+ gün</span></div></button>`).join('')}
+        </div>` : '<div class="pad muted" style="padding-top:0">Biten kontrat ya da uzun süredir aranmayan aktif acente yok.</div>'}</div>`,
+      acts: `<div class="card pad"><h3>Son aktiviteler</h3>${acts.length ? `<div class="tl">${acts.map((a) => actItem(a, true)).join('')}</div>` : '<div class="muted">Henüz aktivite girilmedi.</div>'}</div>`,
+    };
+    const dc = dashCfg();
     return `
     ${S.store.kind === 'local' ? `<div class="banner">${ic('warn')}<span><b>Demo modu.</b> Kayıtlar yalnızca bu cihazda durur; ekip bulutu bağlanınca herkes aynı veriyi canlı görür.</span>${isEmpty ? '<button class="btn sm" data-act="loadSample">Örnek verileri yükle</button>' : ''}</div>` : ''}
     ${isEmpty && S.store.kind !== 'local' ? `<div class="banner"><span><b>Hoş geldiniz.</b> İlk acentenizi, misafirinizi ya da düğün teklifinizi ekleyerek başlayın; Excel'den toplu aktarım Ayarlar'da.</span></div>` : ''}
-    <div class="kpis">
-      <button class="kpi" data-act="nav" data-v="accounts"><small>Aktif acente / firma</small><b>${D().accounts.filter((a) => a.status === 'aktif').length}</b><em>${D().accounts.filter((a) => a.status === 'potansiyel').length} potansiyel</em></button>
-      <button class="kpi" data-act="nav" data-v="opps"><small>Açık grup & etkinlik</small><b>${oo.length}</b><em>${moneyMap(sumByCur(oo, (o) => num(o.value)))}</em></button>
-      <button class="kpi" data-act="nav" data-v="weddings"><small>Açık düğün teklifi</small><b>${wOpen.length}</b><em>${y}: ${wWon.length} sözleşme</em></button>
-      <button class="kpi" data-act="nav" data-v="guests"><small>Misafir kaydı</small><b>${D().guests.length}</b><em>${D().guests.filter((g) => (g.stays || []).length > 1).length} tekrar gelen</em></button>
-      <button class="kpi ${od.length ? 'warn' : ''}" data-act="nav" data-v="tasks"><small>Geciken takip</small><b>${od.length}</b><em>${myOpen().length} açık görevim</em></button>
+    <div class="kband">
+      <div class="kb"><small>Kesinleşen gelir · ${y}</small><b>${shortMoney(cy.rev)}</b>${delta(cy.rev, ly.rev)}${spark(cy.months)}<span class="kfoot">Gerçekleşen ${shortMoney(cyTd.rev)} · ${yr - 1}: ${shortMoney(ly.rev)}</span></div>
+      <div class="kb"><small>Oda-gece · ${y}</small><b>${fmtNum(cy.rn)}</b>${delta(cy.rn, ly.rn)}<span class="kfoot">Gerçekleşen ${fmtNum(cyTd.rn)}</span></div>
+      <div class="kb"><small>ADR (vergisiz) · ${y}</small><b>${cy.adr ? shortMoney(cy.adr) : '—'}</b>${cy.adr ? delta(cy.adr, ly.adr) : '<em>fiyatlı oda kalemi yok</em>'}<span class="kfoot">kesinleşen konaklamalar</span></div>
+      <button class="kb" data-act="nav" data-v="opps"><small>Açık teklifler (pipeline)</small><b>${shortMoney(pipe)}</b><em>${openAll.length} açık talep ve düğün</em><span class="kfoot">vergiler dahil, ₺</span></button>
+      <div class="kb"><small>Kazanma oranı · son 12 ay</small><b>${won12 + lost12 ? '%' + Math.round((won12 / (won12 + lost12)) * 100) : '—'}</b><em>${won12} kesinleşti · ${lost12} kaybedildi</em></div>
+      <button class="kb ${od.length ? 'warn' : ''}" data-act="nav" data-v="tasks"><small>Geciken takip</small><b>${od.length}</b><em>${myOpen().length} açık görevim</em></button>
     </div>
-    <div class="grid g2">
-      <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Takipler · 7 gün</h3></div>${due.length ? `<div class="list">${due.map(taskRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan takip yok.</div>'}</div>
-      <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yaklaşan etkinlikler · 45 gün</h3></div>${ev.length ? `<div class="list">${ev.map(evRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan etkinlik yok.</div>'}</div>
-      <div class="card pad"><h3>Grup & etkinlik hunisi</h3><div class="bars">${OPP_STAGES.map(([k, l]) => { const li = D().opps.filter((o) => o.stage === k); return `<div class="bar"><span>${l}</span><div class="tr"><i class="${k === 'kazanildi' ? 'olive' : k === 'kaybedildi' ? 'red' : ''}" style="width:${(li.length / max) * 100}%"></i></div><span class="v">${li.length} · ${moneyMap(sumByCur(li, (o) => num(o.value)))}</span></div>`; }).join('')}</div></div>
-      <div class="card"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Misafir özel günleri · 21 gün</h3><button class="btn sm" data-act="nav" data-v="cel">${ic('cake')} Kutlamalar</button></div>${sp.length ? `<div class="list">${sp.map((x) => `<div class="row"><div class="av terra">${ic('cake')}</div><button class="t" style="border:0;background:none;text-align:left;padding:0" data-act="open" data-col="guests" data-id="${x.g.id}"><b>${esc(x.g.name)}</b><span>${esc(x.label)} · ${fmtDate(x.date)}</span></button><div class="r">${x.diff === 0 ? '<span class="badge terra">Bugün</span>' : x.diff + ' gün'}</div>${x.diff <= 1 ? `<button class="btn sm" data-act="cardOpen" data-g="${x.g.id}" data-k="${x.o.key}" data-d="${x.date}">Kart</button>` : ''}</div>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan özel gün yok.</div>'}</div>
-      <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Dikkat</h3></div>${endC.length || cold.length ? `<div class="list">
-        ${endC.map((a) => `<button class="row" data-act="open" data-col="accounts" data-id="${a.id}"><div class="av terra">${ic('warn')}</div><div class="t"><b>${esc(a.name)}</b><span>Kontrat ${fmtDate(a.contractEnd)} tarihinde bitiyor</span></div></button>`).join('')}
-        ${cold.map((x) => `<button class="row" data-act="open" data-col="accounts" data-id="${x.a.id}"><div class="av">${esc(initials(x.a.name))}</div><div class="t"><b>${esc(x.a.name)}</b><span>${x.lc ? 'Son temas ' + fmtDate(x.lc) : 'Henüz temas kaydı yok'}</span></div><div class="r"><span class="badge gold">60+ gün</span></div></button>`).join('')}
-        </div>` : '<div class="pad muted" style="padding-top:0">Biten kontrat ya da uzun süredir aranmayan aktif acente yok.</div>'}</div>
-      <div class="card pad"><h3>Son aktiviteler</h3>${acts.length ? `<div class="tl">${acts.map((a) => actItem(a, true)).join('')}</div>` : '<div class="muted">Henüz aktivite girilmedi.</div>'}</div>
-    </div>`;
+    <div class="grid g2">${dc.order.filter((k) => !dc.hidden.includes(k) && W[k]).map((k) => W[k]).join('')}</div>`;
   },
 };
 
@@ -213,7 +279,7 @@ V.opps = {
     const ed = can.edit('opps');
     return `<div class="kanban">${OPP_STAGES.map(([k, l]) => { const li = sortBy(list.filter((o) => o.stage === k), (o) => o.start || '9999'); return `<div class="col" data-stage="${k}"><h4>${l} <span>${li.length} · ${moneyMap(sumByCur(li, (o) => num(o.value)))}</span></h4>
       ${li.map((o) => { const acc = byId('accounts', o.accountId); return `<div class="kc" role="button" tabindex="0" ${ed ? 'draggable="true"' : ''} data-act="open" data-col="opps" data-id="${o.id}"><b>${esc(o.title)}${A._revBadge ? A._revBadge(o) : ''}</b><span>${esc([acc && acc.name, OPP_KINDS[o.kind]].filter(Boolean).join(' · '))}</span>
-        <span>${esc([fmtRange(o.start, o.end), o.pax ? o.pax + ' kişi' : '', o.rooms ? o.rooms + ' oda' : ''].filter(Boolean).join(' · '))}</span>
+        <span>${esc([fmtRange(o.start, o.end), o.pax ? o.pax + ' kişi' : '', (() => { const rn = recMetrics('opps', o).roomNights; return rn ? rn + ' oda-gece' : (o.rooms ? o.rooms + ' oda' : ''); })(), o.segment].filter(Boolean).join(' · '))}</span>
         <div class="f"><b>${o.value ? money(o.value, o.currency) : ''}</b><span>${esc(userName(o.ownerId))}</span></div>
         ${k === 'teklif' ? `<div class="kact">${o.offerSentAt ? `<span class="badge olive">Gönderildi ${fmtDate(iso(new Date(o.offerSentAt)))}</span>` : ''}${ed ? `<button class="btn sm" data-act="revise" data-col="opps" data-id="${o.id}">Revize</button>` : ''}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} ${o.offerSentAt ? 'Teklifi aç' : 'Teklif hazırla'}</button></div>` : ''}</div>`; }).join('') || '<div class="muted" style="font-size:13px;padding:4px">—</div>'}</div>`; }).join('')}</div>
       ${ed ? '<p class="muted" style="font-size:13px">Bilgisayarda kartı sürükleyerek, telefonda kartı açıp aşama seçerek ilerletebilirsiniz. Kart <b>Teklif hazırla</b> sütununa gelince teklif ekranı açılır.</p>' : ''}`;
@@ -290,6 +356,14 @@ function billingCard(a) {
     ${hasBilling(a) ? dl([['Ticari ünvan', a.invTitle], ['Vergi dairesi', a.taxOffice], ['Vergi no', a.taxNo], ['Fatura adresi', a.invAddress], ['Fatura e-postası', a.invEmail], ['e-Fatura', EINV[a.eInvoice] || ''], ['Ödeme koşulu', a.paymentTerms], ['MERSİS', a.mersis], ['IBAN', a.iban]]) : '<span class="muted">Fatura bilgisi girilmemiş.</span>'}</div>`;
 }
 A.copyBilling = (el) => copyText(billingText(byId('accounts', el.dataset.id)));
+export function metricsStrip(col, r) {
+  const m = recMetrics(col, r); const parts = [];
+  if (m.roomNights) parts.push(['Oda-gece', fmtNum(m.roomNights)]);
+  if (Object.keys(m.adr).length) parts.push(['ADR (vergisiz)', moneyMap(m.adr)]);
+  [['oda', 'Oda geliri'], ['yi', 'Yiyecek-içecek'], ['salon', 'Salon / MICE'], ['diger', 'Diğer']].forEach(([k, l]) => { if (m.dept[k]) parts.push([l, moneyMap(m.dept[k])]); });
+  if (!parts.length) return '';
+  return `<div class="kpis" style="margin:0">${parts.map(([l, v]) => `<div class="kpi"><small>${l}</small><b style="font-size:19px">${esc(v)}</b></div>`).join('')}</div>`;
+}
 export function priceTable(col, r) {
   const p = priceRows(col, r);
   if (!p.rows.length) return '<span class="muted">Fiyat kalemi girilmemiş. Düzenle\'den ekleyin.</span>';
@@ -303,7 +377,7 @@ const SHEETS = {
     return { title: a.name, body: `
       <div class="acts"><span class="badge teal">${esc(ACC_TYPES[a.type] || '')}</span><span class="badge ${a.status === 'aktif' ? 'olive' : 'gold'}">${esc(ACC_STATUS[a.status] || '')}</span></div>
       <div class="acts">${contactBtns(a.phone, a.email)}${can.edit('opps') ? `<button class="btn sm" data-act="addOppFor" data-id="${a.id}">${ic('plus')} Talep</button>` : ''}</div>
-      <div class="card pad"><h3>Bilgiler</h3>${dl([['Konum', [a.city, a.country].filter(Boolean).join(', ')], ['Pazar', a.market], ['Telefon', a.phone], ['E-posta', a.email], ['Web', a.web], ['Sorumlu', userName(a.ownerId)], ['Komisyon', a.commission !== '' && a.commission != null ? '%' + a.commission : ''], ['Kontrat', fmtRange(a.contractStart, a.contractEnd)], ['Kontrat notu', a.contractNote], ['Notlar', a.notes]]) || '<span class="muted">Bilgi girilmemiş.</span>'}</div>
+      <div class="card pad"><h3>Bilgiler</h3>${dl([['Konum', [a.city, a.country].filter(Boolean).join(', ')], ['Pazar', a.market], ['Segment', a.segment], ['Kanal', a.channel], ['Telefon', a.phone], ['E-posta', a.email], ['Web', a.web], ['Sorumlu', userName(a.ownerId)], ['Komisyon', a.commission !== '' && a.commission != null ? '%' + a.commission : ''], ['Kontrat', fmtRange(a.contractStart, a.contractEnd)], ['Kontrat notu', a.contractNote], ['Notlar', a.notes]]) || '<span class="muted">Bilgi girilmemiş.</span>'}</div>
       ${billingCard(a)}
       ${A._filesCard ? A._filesCard('accounts', a.id) : ''}
       <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yetkili kişiler</h3></div>${(a.contacts || []).length ? `<div class="list">${a.contacts.map((c) => `<div class="row"><div class="av">${esc(initials(c.name))}</div><div class="t"><b>${esc(c.name)}</b><span>${esc([c.title, c.phone, c.email].filter(Boolean).join(' · '))}</span></div><div class="acts">${c.phone ? `<a class="btn sm" href="tel:${esc(c.phone)}" aria-label="Ara">${ic('phone')}</a><a class="btn sm" href="https://wa.me/${waNum(c.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp">${ic('wa')}</a>` : ''}${c.email ? `<a class="btn sm" href="mailto:${esc(c.email)}" aria-label="E-posta">${ic('mail')}</a>` : ''}</div></div>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yetkili eklenmemiş.</div>'}</div>
@@ -326,9 +400,10 @@ const SHEETS = {
     return { title: o.title, body: `
       <div class="acts" style="align-items:center">${stageSel('opps', o, OPP_STAGES)}<span class="badge teal">${esc(OPP_KINDS[o.kind] || '')}</span></div>
       <div class="acts">${contactBtns(o.phone, acc && acc.email)}<button class="btn sm pri" data-act="offer" data-col="opps" data-id="${o.id}">${ic('note')} Teklif</button></div>
-      <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
+      <div class="card pad"><h3>Talep</h3>${dl([['Acente / firma', acc ? `<a href="#" data-act="open" data-col="accounts" data-id="${acc.id}">${esc(acc.name)}</a>` : '', true], ['İlgili kişi', o.contactName], ['Telefon', o.phone], ['Tesis', o.property], ['Tarih', fmtRange(o.start, o.end)], ['Kişi', o.pax], ['Oda', o.rooms], ['Segment', o.segment], ['Kanal', o.channel], ['Kaynak', o.source], ['Sorumlu', userName(o.ownerId)], ['Teklif geçerlilik', fmtDate(o.validUntil)], ['Kayıp nedeni', o.stage === 'kaybedildi' ? o.lossReason : ''], ['Notlar', o.notes]])}</div>
       ${o.program ? `<div class="card pad"><h3>Program / menü</h3><div style="white-space:pre-wrap">${esc(o.program)}</div></div>` : ''}
       ${A._revCard ? A._revCard('opps', o) : ''}
+      ${metricsStrip('opps', o)}
       <div class="card pad"><h3>Fiyat${(o.revisions || []).length ? ` · Rev. ${(o.revisions || []).length + 1}` : ''}</h3>${priceTable('opps', o)}${num(o.deposit) || num(o.depositPaid) ? `<table class="tb" style="margin-top:8px">${num(o.deposit) ? `<tr><td>İstenen ön ödeme</td><td class="n">${money(num(o.deposit), o.currency)}</td></tr>` : ''}${num(o.depositPaid) ? `<tr><td>Alınan</td><td class="n">${money(num(o.depositPaid), o.currency)}</td></tr><tr><td><b>Kalan</b></td><td class="n"><b>${money(Math.max(0, num(o.value) - num(o.depositPaid)), o.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
       ${A._filesCard ? A._filesCard('opps', o.id) : ''}
       ${relBlocks('opps', o.id)}${foot(o)}` };
@@ -339,8 +414,9 @@ const SHEETS = {
       ${cf.length ? `<div class="banner" style="margin:0">${ic('warn')}<span>Aynı gün ve mekânda başka kayıt var: <b>${esc(cf.map((x) => x.couple).join(', '))}</b></span></div>` : ''}
       <div class="acts" style="align-items:center">${stageSel('weddings', w, WED_STAGES)}<span class="badge terra">${esc(w.eventType || 'Düğün')}</span></div>
       <div class="acts">${contactBtns(w.phone, w.email)}<button class="btn sm pri" data-act="offer" data-col="weddings" data-id="${w.id}">${ic('note')} Teklif</button></div>
-      <div class="card pad"><h3>Organizasyon</h3>${dl([['Tarih', w.date ? fmtDateLong(w.date) : ''], ['Mekân', w.venue], ['Davetli', w.guests], ['Menü / paket', w.menu], ['Telefon', w.phone], ['E-posta', w.email], ['Kaynak', w.source], ['Sorumlu', userName(w.ownerId)], ['Geçerlilik', fmtDate(w.validUntil)], ['Kayıp nedeni', w.stage === 'kaybedildi' ? w.lossReason : ''], ['Notlar', w.notes]])}</div>
+      <div class="card pad"><h3>Organizasyon</h3>${dl([['Tarih', w.date ? fmtDateLong(w.date) : ''], ['Mekân', w.venue], ['Davetli', w.guests], ['Menü / paket', w.menu], ['Telefon', w.phone], ['E-posta', w.email], ['Segment', w.segment], ['Kanal', w.channel], ['Kaynak', w.source], ['Sorumlu', userName(w.ownerId)], ['Geçerlilik', fmtDate(w.validUntil)], ['Kayıp nedeni', w.stage === 'kaybedildi' ? w.lossReason : ''], ['Notlar', w.notes]])}</div>
       ${A._revCard ? A._revCard('weddings', w) : ''}
+      ${metricsStrip('weddings', w)}
       <div class="card pad"><h3>Fiyat${(w.revisions || []).length ? ` · Rev. ${(w.revisions || []).length + 1}` : ''}</h3>${priceTable('weddings', w)}
         ${num(w.deposit) || paid ? `<table class="tb" style="margin-top:8px">${num(w.deposit) ? `<tr><td>İstenen kapora</td><td class="n">${money(num(w.deposit), w.currency)}</td></tr>` : ''}${paid ? `<tr><td>Alınan kapora</td><td class="n">${money(paid, w.currency)}</td></tr><tr><td><b>Kalan</b> (${esc(w.currency || 'TRY')})</td><td class="n"><b>${money(Math.max(0, tot - paid), w.currency)}</b></td></tr>` : ''}</table>` : ''}</div>
       ${A._filesCard ? A._filesCard('weddings', w.id) : ''}
@@ -355,6 +431,8 @@ export function renderSheet() {
   const s = (SHEETS[S.sheet.col] || A._sheets[S.sheet.col])(r);
   const bl = A._blBanner && ['guests', 'weddings', 'opps'].includes(S.sheet.col) ? A._blBanner(S.sheet.col, r) : '';
   if (bl) s.body = bl + s.body;
+  const cfc = A._cfCard && ['accounts', 'guests', 'opps', 'weddings'].includes(S.sheet.col) ? A._cfCard(S.sheet.col, r) : '';
+  if (cfc) s.body = s.body.replace('<div class="card pad"><h3>', cfc + '<div class="card pad"><h3>');
   if (!bl && can.edit('blacklist') && ['guests', 'weddings'].includes(S.sheet.col)) s.body += `<div><button class="btn sm danger" data-act="blFromRec" data-col="${S.sheet.col}" data-id="${r.id}">${ic('ban')} Kara listeye ekle</button></div>`;
   root.innerHTML = `<div class="ov"><aside class="sheet"><div class="sh"><div style="flex:1;min-width:0"><div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.08em">${COL_LABEL[S.sheet.col]}</div><h2>${esc(s.title)}</h2></div>
     <button class="btn sm" data-act="printRec" data-col="${S.sheet.col}" data-id="${r.id}" title="Yazdır / PDF" aria-label="Yazdır">${ic('printer')}</button>${can.edit(S.sheet.col) ? `<button class="btn sm" data-act="edit" data-col="${S.sheet.col}" data-id="${r.id}">${ic('pencil')} Düzenle</button>` : ''}<button class="x" data-act="closeSheet" aria-label="Kapat">${ic('x')}</button></div><div class="sb">${s.body}</div></aside></div>`;

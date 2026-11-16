@@ -9,7 +9,7 @@ import {
   collection, doc, onSnapshot, setDoc, deleteDoc, getDoc, writeBatch,
 } from 'firebase/firestore';
 
-export const COLS = ['accounts', 'guests', 'opps', 'weddings', 'activities', 'tasks', 'files', 'blacklist'];
+export const COLS = ['accounts', 'guests', 'opps', 'weddings', 'activities', 'tasks', 'files', 'blacklist', 'reports'];
 
 export function newId() {
   const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

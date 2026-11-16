@@ -2,7 +2,7 @@
 import * as XLSX from 'xlsx';
 import {
   S, A, $, esc, ic, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, today, addDays, fmtDate, fmtDateLong, money, num, fmtNum,
-  byId, userName, stageLabel, wedTotal, recCalc, calcItems, toast, stamp, errText, infoModal, closeModal, iso, trLower, digits, can, copyText, confirmBox, recTitle,
+  byId, userName, stageLabel, wedTotal, recCalc, calcItems, recMetrics, DEPT_LABEL, deptOf, toast, stamp, errText, infoModal, closeModal, iso, trLower, digits, can, copyText, confirmBox, recTitle,
 } from './core.js';
 import { newId } from './store.js';
 
@@ -21,7 +21,7 @@ function writeBook(name, sheets) {
 /* ---------- sütun tanımları ---------- */
 const rev = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [trLower(v), k]));
 const C = {
-  accounts: [['name', 'Firma / Acente'], ['type', 'Tür'], ['status', 'Durum'], ['city', 'Şehir'], ['country', 'Ülke'], ['market', 'Pazar'], ['phone', 'Telefon'], ['email', 'E-posta'], ['web', 'Web'],
+  accounts: [['name', 'Firma / Acente'], ['type', 'Tür'], ['status', 'Durum'], ['city', 'Şehir'], ['country', 'Ülke'], ['market', 'Pazar'], ['segment', 'Segment'], ['channel', 'Kanal'], ['phone', 'Telefon'], ['email', 'E-posta'], ['web', 'Web'],
     ['c1name', 'Yetkili'], ['c1title', 'Yetkili Görevi'], ['c1phone', 'Yetkili Telefon'], ['c1email', 'Yetkili E-posta'], ['commission', 'Komisyon %'], ['contractStart', 'Kontrat Başlangıç'], ['contractEnd', 'Kontrat Bitiş'], ['contractNote', 'Kontrat Notu'],
     ['invTitle', 'Ticari Ünvan'], ['taxOffice', 'Vergi Dairesi'], ['taxNo', 'Vergi No'], ['invAddress', 'Fatura Adresi'], ['invEmail', 'Fatura E-postası'], ['paymentTerms', 'Ödeme Koşulu'], ['mersis', 'MERSİS No'], ['iban', 'IBAN'], ['notes', 'Notlar']],
   guests: [['name', 'Ad Soyad'], ['phone', 'Telefon'], ['email', 'E-posta'], ['city', 'Şehir'], ['country', 'Ülke'], ['birthday', 'Doğum Günü'], ['anniversary', 'Yıl Dönümü'], ['tags', 'Etiketler'], ['prefs', 'Tercihler'], ['notes', 'Notlar'],
@@ -31,7 +31,11 @@ const accRow = (a) => { const c = (a.contacts || [])[0] || {}; return { ...a, ty
 const toRows = (defs, list) => list.map((r) => Object.fromEntries(defs.map(([k, h]) => [h, r[k] ?? ''])));
 const heads = (defs) => defs.map((d) => d[1]);
 
-function sheetsFor(col) {
+const r2x = (v) => Math.round((v || 0) * 100) / 100;
+const mx = (col, r) => { const m = recMetrics(col, r); const k = m.main; return { rn: m.roomNights || '', adr: m.adr[k] ? r2x(m.adr[k]) : '', roomRev: r2x((m.dept.oda || {})[k]), fbRev: r2x((m.dept.yi || {})[k]), salonRev: r2x((m.dept.salon || {})[k]) }; };
+const withCf = (col, sheets) => { const fs = (S.settings.customFields || {})[col] || []; if (!fs.length || !sheets.length) return sheets; const [title, rows, hs] = sheets[0]; const list = S.data[col] || []; rows.forEach((row, i) => { fs.forEach((f) => { row[f.label] = list[i] ? (list[i][f.key] ?? '') : ''; }); }); sheets[0] = [title, rows, [...hs, ...fs.map((f) => f.label)]]; return sheets; };
+function sheetsFor(col) { return withCf(col, sheetsFor0(col)); }
+function sheetsFor0(col) {
   const D = S.data;
   if (col === 'accounts') {
     const kd = [['acc', 'Firma / Acente'], ['name', 'Yetkili'], ['title', 'Görevi'], ['phone', 'Telefon'], ['email', 'E-posta']];
@@ -45,15 +49,15 @@ function sheetsFor(col) {
       ['Konaklamalar', toRows(sd, D.guests.flatMap((g) => (g.stays || []).map((s) => ({ ...s, g: g.name, checkIn: fmtDate(s.checkIn), checkOut: fmtDate(s.checkOut) })))), heads(sd)]];
   }
   if (col === 'opps') {
-    const d = [['title', 'Başlık'], ['kind', 'Tür'], ['stage', 'Aşama'], ['acc', 'Acente / Firma'], ['contactName', 'İlgili Kişi'], ['phone', 'Telefon'], ['property', 'Tesis'], ['start', 'Başlangıç'], ['end', 'Bitiş'], ['pax', 'Kişi'], ['rooms', 'Oda'], ['value', 'Tutar'], ['currency', 'Para Birimi'], ['revn', 'Revizyon'], ['source', 'Kaynak'], ['owner', 'Sorumlu'], ['lossReason', 'Kayıp Nedeni'], ['notes', 'Notlar']];
-    return [['Grup ve Etkinlik', toRows(d, D.opps.map((o) => ({ ...o, kind: OPP_KINDS[o.kind], stage: stageLabel(OPP_STAGES, o.stage), acc: (byId('accounts', o.accountId) || {}).name, start: fmtDate(o.start), end: fmtDate(o.end), revn: 'Rev. ' + ((o.revisions || []).length + 1), owner: userName(o.ownerId) }))), heads(d)]];
+    const d = [['title', 'Başlık'], ['kind', 'Tür'], ['stage', 'Aşama'], ['acc', 'Acente / Firma'], ['contactName', 'İlgili Kişi'], ['phone', 'Telefon'], ['property', 'Tesis'], ['start', 'Başlangıç'], ['end', 'Bitiş'], ['pax', 'Kişi'], ['rooms', 'Oda'], ['value', 'Tutar'], ['currency', 'Para Birimi'], ['revn', 'Revizyon'], ['segment', 'Segment'], ['channel', 'Kanal'], ['rn', 'Oda-gece'], ['adr', 'ADR (vergisiz)'], ['roomRev', 'Oda Geliri (vergisiz)'], ['fbRev', 'Y&İ Geliri (vergisiz)'], ['salonRev', 'Salon Geliri (vergisiz)'], ['source', 'Kaynak'], ['owner', 'Sorumlu'], ['lossReason', 'Kayıp Nedeni'], ['notes', 'Notlar']];
+    return [['Grup ve Etkinlik', toRows(d, D.opps.map((o) => ({ ...o, kind: OPP_KINDS[o.kind], stage: stageLabel(OPP_STAGES, o.stage), acc: (byId('accounts', o.accountId) || {}).name, start: fmtDate(o.start), end: fmtDate(o.end), revn: 'Rev. ' + ((o.revisions || []).length + 1), ...mx('opps', o), owner: userName(o.ownerId) }))), heads(d)]];
   }
   if (col === 'weddings') {
-    const d = [['couple', 'Çift'], ['date', 'Tarih'], ['venue', 'Mekân'], ['eventType', 'Organizasyon'], ['stage', 'Aşama'], ['guests', 'Davetli'], ['menu', 'Menü'], ['lines', 'Kalemler'], ['net', 'Vergiler Hariç'], ['tax', 'Vergiler'], ['total', 'Genel Toplam'], ['currency', 'Para Birimi'], ['revn', 'Revizyon'], ['deposit', 'İstenen Kapora'], ['depositPaid', 'Alınan Kapora'], ['phone', 'Telefon'], ['email', 'E-posta'], ['source', 'Kaynak'], ['owner', 'Sorumlu'], ['lossReason', 'Kayıp Nedeni'], ['notes', 'Notlar']];
-    const il = [['w', 'Düğün'], ['name', 'Kalem'], ['qty', 'Miktar'], ['price', 'Birim Fiyat'], ['cur', 'Para Birimi'], ['kdvR', 'KDV %'], ['kvR', 'Konaklama V. %'], ['mode', 'Vergiler'], ['net', 'Vergiler Hariç'], ['kvA', 'Konaklama Vergisi'], ['kdvA', 'KDV'], ['gross', 'Toplam']];
+    const d = [['couple', 'Çift'], ['date', 'Tarih'], ['venue', 'Mekân'], ['eventType', 'Organizasyon'], ['stage', 'Aşama'], ['guests', 'Davetli'], ['menu', 'Menü'], ['lines', 'Kalemler'], ['net', 'Vergiler Hariç'], ['tax', 'Vergiler'], ['total', 'Genel Toplam'], ['currency', 'Para Birimi'], ['revn', 'Revizyon'], ['segment', 'Segment'], ['channel', 'Kanal'], ['rn', 'Oda-gece'], ['roomRev', 'Oda Geliri (vergisiz)'], ['fbRev', 'Y&İ Geliri (vergisiz)'], ['salonRev', 'Salon Geliri (vergisiz)'], ['deposit', 'İstenen Kapora'], ['depositPaid', 'Alınan Kapora'], ['phone', 'Telefon'], ['email', 'E-posta'], ['source', 'Kaynak'], ['owner', 'Sorumlu'], ['lossReason', 'Kayıp Nedeni'], ['notes', 'Notlar']];
+    const il = [['w', 'Düğün'], ['name', 'Kalem'], ['qty', 'Miktar'], ['price', 'Birim Fiyat'], ['cur', 'Para Birimi'], ['kdvR', 'KDV %'], ['kvR', 'Konaklama V. %'], ['mode', 'Vergiler'], ['dept', 'Departman'], ['net', 'Vergiler Hariç'], ['kvA', 'Konaklama Vergisi'], ['kdvA', 'KDV'], ['gross', 'Toplam']];
     const r2 = (n) => Math.round(n * 100) / 100;
-    return [['Düğün Teklifleri', toRows(d, D.weddings.map((w) => { const c = recCalc('weddings', w); const m = c.by[c.main] || { net: 0, gross: 0 }; return { ...w, date: fmtDate(w.date), stage: stageLabel(WED_STAGES, w.stage), lines: c.lines.map((l) => l.name).join(', '), net: r2(m.net), tax: r2(m.gross - m.net), total: r2(m.gross), currency: c.main, revn: 'Rev. ' + ((w.revisions || []).length + 1), owner: userName(w.ownerId) }; })), heads(d)],
-      ['Düğün Kalemleri', toRows(il, D.weddings.flatMap((w) => recCalc('weddings', w).lines.map((l) => ({ ...l, w: w.couple, mode: l.mode === 'ekle' ? 'Eklenecek' : 'Dahil', net: r2(l.net), kvA: r2(l.kvA), kdvA: r2(l.kdvA), gross: r2(l.gross) })))), heads(il)]];
+    return [['Düğün Teklifleri', toRows(d, D.weddings.map((w) => { const c = recCalc('weddings', w); const m = c.by[c.main] || { net: 0, gross: 0 }; return { ...w, date: fmtDate(w.date), stage: stageLabel(WED_STAGES, w.stage), lines: c.lines.map((l) => l.name).join(', '), net: r2(m.net), tax: r2(m.gross - m.net), total: r2(m.gross), currency: c.main, revn: 'Rev. ' + ((w.revisions || []).length + 1), ...mx('weddings', w), owner: userName(w.ownerId) }; })), heads(d)],
+      ['Düğün Kalemleri', toRows(il, D.weddings.flatMap((w) => recCalc('weddings', w).lines.map((l) => ({ ...l, w: w.couple, mode: l.mode === 'ekle' ? 'Eklenecek' : 'Dahil', dept: DEPT_LABEL[deptOf(l)], net: r2(l.net), kvA: r2(l.kvA), kdvA: r2(l.kdvA), gross: r2(l.gross) })))), heads(il)]];
   }
   if (col === 'activities') {
     const d = [['date', 'Tarih'], ['type', 'Tür'], ['ref', 'İlgili Kayıt'], ['subject', 'Konu'], ['note', 'Not'], ['userName', 'Giren']];
@@ -144,12 +148,16 @@ A.loadSample = async () => {
     mk({ title: 'Emeklilik yemeği (40 kişi)', kind: 'yemek', stage: 'talep', contactName: 'Hakan Bey', phone: '0530 555 40 04', property: 'Ortunç Restoran', start: addDays(t, 20), end: addDays(t, 20), pax: 40, value: 96000, currency: 'TRY', source: 'Telefon', ownerId: u.uid }),
     mk({ title: 'Yoga inziva haftası', kind: 'etkinlik', stage: 'kaybedildi', property: 'Elia Antique', start: addDays(t, -20), end: addDays(t, -14), pax: 18, value: 240000, currency: 'TRY', source: 'Instagram', lossReason: 'Tarih dolu', ownerId: u.uid }),
   ];
+  const SEG = ['MICE / toplantı', 'Tur operatörü / grup', 'Tur operatörü / grup', 'Kurumsal', 'MICE / toplantı'], CH = ['Kurumsal anlaşma', 'Tur operatörü', 'Acente', 'Direkt (telefon / e-posta)', 'Sosyal medya'];
+  opps.forEach((o, i) => { o.segment = SEG[i]; o.channel = CH[i]; (o.items || []).forEach((it) => { it.dept = deptOf(it); }); });
+  acc.forEach((x, i) => { x.segment = ['Tur operatörü / grup', 'Tur operatörü / grup', 'MICE / toplantı', 'Tur operatörü / grup'][i]; x.channel = ['Acente', 'Tur operatörü', 'Kurumsal anlaşma', 'Tur operatörü'][i]; });
   opps.forEach((o) => { if (o.items) { const c = calcItems(o.items, 1); o.value = Math.round(c.by[c.main].gross); o.currency = c.main; } });
   const weds = [
     mk({ couple: 'Elif & Mert', phone: '0532 555 50 05', date: `${y + 1}-06-12`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'opsiyon', guests: 180, menu: 'Ege menüsü, yerli içecek', items: [{ name: 'Ege menüsü (kişi başı)', qty: '', price: 3200, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }, { name: 'Süsleme ve çiçek', qty: 1, price: 85000, cur: 'TRY', kdv: 20, kv: 0, mode: 'dahil' }, { name: 'DJ ve ses sistemi', qty: 1, price: 45000, cur: 'TRY', kdv: 20, kv: 0, mode: 'dahil' }, { name: 'İndirim', qty: 1, price: -20000, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }], currency: 'TRY', deposit: 150000, depositPaid: 0, validUntil: addDays(t, 10), source: 'Instagram', ownerId: u.uid }),
     mk({ couple: 'Zeynep & Can', phone: '0533 555 60 06', date: `${y + 1}-09-05`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'sozlesme', guests: 120, menu: 'Deniz ürünleri menüsü', items: [{ name: 'Deniz ürünleri menüsü (kişi başı)', qty: '', price: 3500, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }, { name: 'Konaklama (10 oda × 2 gece)', qty: 20, price: 160, cur: 'EUR', kdv: 10, kv: 1, mode: 'ekle' }], currency: 'TRY', deposit: 200000, depositPaid: 200000, source: 'Tavsiye', ownerId: u.uid }),
     mk({ couple: 'Deniz & Arda', phone: '0535 555 70 07', date: `${y + 1}-06-12`, venue: 'Ortunç Otel', eventType: 'Düğün', stage: 'teklif', guests: 150, items: [{ name: 'Menü (kişi başı)', qty: '', price: 3200, cur: 'TRY', kdv: 10, kv: 0, mode: 'dahil' }], currency: 'TRY', validUntil: addDays(t, 7), source: 'Web sitesi', ownerId: u.uid }),
   ];
+  weds.forEach((w, i) => { w.segment = 'Düğün & sosyal etkinlik'; w.channel = ['Sosyal medya', 'Direkt (telefon / e-posta)', 'Web sitesi'][i]; (w.items || []).forEach((it) => { it.dept = deptOf(it); }); });
   const act = (col, r, o) => mk({ ref: { col, id: r.id }, refName: recTitle(col, r), userId: u.uid, userName: u.name, ...o });
   const acts = [
     act('accounts', acc[0], { type: 'ziyaret', date: addDays(t, -5), subject: 'Sezon değerlendirme ziyareti', note: 'Gelecek yıl kontenjan artışı istiyorlar. Erken rezervasyon indirimi soruldu.' }),

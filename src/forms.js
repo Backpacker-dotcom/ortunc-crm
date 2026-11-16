@@ -1,5 +1,5 @@
 import {
-  itemsOf, num, presetsOf,
+  itemsOf, itemsForForm, num, presetsOf, DEPTS, deptOf,
   S, A, EINV, ACC_TYPES, ACC_STATUS, OPP_KINDS, OPP_STAGES, WED_STAGES, ACT_TYPES, CURS, opts, openForm, today, stamp, can, toast,
   byId, sortBy, recTitle, COL_LABEL, addDays, userName, taxCfg, KDV_OPTS, kvOpts, MODE_OPTS, calcItems, money, esc,
 } from './core.js';
@@ -24,11 +24,12 @@ export function itemsField(label, hint, col) {
   const t = taxCfg();
   return {
     k: 'items', label, type: 'rows', cls: 'items', addLabel: 'Kalem ekle', hint, presets: col ? presetsOf(col) : null,
-    heads: ['Kalem', 'Miktar', 'Birim fiyat', 'Para birimi', 'KDV %', 'Konaklama V. %', 'Vergiler'],
+    heads: ['Kalem', 'Miktar', 'Birim fiyat', 'Para birimi', 'KDV %', 'Konaklama V. %', 'Vergiler', 'Departman'],
     sub: [
       { k: 'name', ph: 'Kalem' }, { k: 'qty', ph: 'Miktar', type: 'number' }, { k: 'price', ph: 'Birim fiyat', type: 'number', neg: true },
       { k: 'cur', type: 'select', opts: CURS, req: true, def: 'TRY' }, { k: 'kdv', type: 'number', ph: '%', list: 'dlKdv', max: 100, def: t.kdv },
       { k: 'kv', type: 'number', ph: '%', list: 'dlKv', max: 100, def: 0 }, { k: 'mode', type: 'select', opts: MODE_OPTS, req: true, def: t.mode },
+      { k: 'dept', type: 'select', opts: DEPTS, req: true, def: 'diger' },
     ],
     summary: (rows, get) => {
       const c = calcItems(rows, get('guests') || 1);
@@ -41,7 +42,7 @@ export function itemsField(label, hint, col) {
     },
   };
 }
-const cleanItems = (items) => (items || []).map((x) => ({ name: x.name || '', qty: x.qty === '' ? '' : num(x.qty), price: num(x.price), cur: x.cur || 'TRY', kdv: num(x.kdv), kv: num(x.kv), mode: x.mode === 'ekle' ? 'ekle' : 'dahil' }));
+export const cleanItems = (items) => (items || []).map((x) => ({ name: x.name || '', qty: x.qty === '' ? '' : num(x.qty), price: num(x.price), cur: x.cur || 'TRY', kdv: num(x.kdv), kv: num(x.kv), mode: x.mode === 'ekle' ? 'ekle' : 'dahil', dept: x.dept || deptOf(x) }));
 
 export function accountForm(rec) {
   openForm({
@@ -53,7 +54,9 @@ export function accountForm(rec) {
       { k: 'status', label: 'Durum', type: 'select', opts: opts(ACC_STATUS), req: true, half: true },
       { k: 'city', label: 'Şehir', half: true },
       { k: 'country', label: 'Ülke', half: true },
-      { k: 'market', label: 'Pazar / segment', half: true, ph: 'ör. Yurt içi, Balkanlar, MICE' },
+      { k: 'market', label: 'Pazar (bölge)', half: true, ph: 'ör. Yurt içi, Balkanlar, Almanya' },
+      { k: 'segment', label: 'Pazar segmenti', type: 'select', opts: listOpts(S.settings.segments), half: true },
+      { k: 'channel', label: 'Satış kanalı', type: 'select', opts: listOpts(S.settings.channels), half: true },
       { k: 'ownerId', label: 'Sorumlu', type: 'select', opts: userOpts(), half: true },
       { k: 'phone', label: 'Telefon', type: 'tel', half: true },
       { k: 'email', label: 'E-posta', type: 'email', half: true },
@@ -75,6 +78,7 @@ export function accountForm(rec) {
       { k: 'iban', label: 'IBAN', ph: 'TR..' },
       { type: 'section', label: 'Diğer' },
       { k: 'notes', label: 'Notlar', type: 'textarea' },
+      ...(A._cfFields ? A._cfFields('accounts') : []),
     ],
     onSave: async (v) => { if (v.taxNo && !/^\d{10,11}$/.test(v.taxNo.replace(/\s/g, ''))) { const e = new Error(); e.userMsg = 'Vergi no 10, TC kimlik no 11 haneli olmalı.'; throw e; } v.taxNo = (v.taxNo || '').replace(/\s/g, ''); v.iban = (v.iban || '').replace(/\s/g, '').toUpperCase(); const id = await save('accounts', v, rec); if (!rec) A.open({ dataset: { col: 'accounts', id } }); },
     onDelete: delFn('accounts', rec),
@@ -102,6 +106,7 @@ export function guestForm(rec) {
         { k: 'checkIn', ph: 'Giriş', type: 'date' }, { k: 'checkOut', ph: 'Çıkış', type: 'date' },
         { k: 'property', ph: 'Tesis', type: 'select', opts: listOpts(S.settings.properties) }, { k: 'room', ph: 'Oda' }, { k: 'amount', ph: 'Tutar', type: 'number' }, { k: 'note', ph: 'Not / kanal' }] },
       { k: 'notes', label: 'Notlar', type: 'textarea' },
+      ...(A._cfFields ? A._cfFields('guests') : []),
     ],
     onSave: async (v) => {
       v.tags = v.tags.split(',').map((t) => t.trim()).filter(Boolean);
@@ -115,7 +120,7 @@ export function oppForm(rec, preset = {}) {
   openForm({
     title: rec ? 'Talebi düzenle' : 'Yeni grup / etkinlik talebi',
     wide: true,
-    data: rec ? { ...rec, items: itemsOf('opps', rec) } : { kind: 'grup', stage: 'talep', currency: 'TRY', ownerId: S.user.uid, property: S.settings.properties[0], validUntil: addDays(today(), 10),
+    data: rec ? { ...rec, items: itemsForForm('opps', rec) } : { kind: 'grup', stage: 'talep', currency: 'TRY', ownerId: S.user.uid, property: S.settings.properties[0], validUntil: addDays(today(), 10),
       items: [], ...preset },
     fields: [
       { k: 'title', label: 'Başlık', req: true, ph: 'ör. X Firması bayi toplantısı' },
@@ -133,11 +138,14 @@ export function oppForm(rec, preset = {}) {
       itemsField('Fiyat kalemleri', 'Önce tarihleri, kişi ve oda sayısını girin; sonra hazır kalemlere dokunun, miktar kendiliğinden hesaplanır (konaklama = oda × gece, yemek = kişi × gün). Özel kalem ile istediğiniz kalemi ekleyin.', 'opps'),
       { k: 'deposit', label: 'İstenen kapora / ön ödeme', type: 'number', half: true },
       { k: 'depositPaid', label: 'Alınan kapora', type: 'number', half: true },
+      { k: 'segment', label: 'Pazar segmenti', type: 'select', opts: listOpts(S.settings.segments), half: true },
+      { k: 'channel', label: 'Satış kanalı', type: 'select', opts: listOpts(S.settings.channels), half: true },
       { k: 'source', label: 'Kaynak', type: 'select', opts: listOpts(S.settings.sources), half: true },
       { k: 'ownerId', label: 'Sorumlu', type: 'select', opts: userOpts(), half: true },
       { k: 'validUntil', label: 'Teklif geçerlilik', type: 'date', half: true },
       { k: 'lossReason', label: 'Kayıp nedeni (kaybedildiyse)', half: true, ph: 'ör. Fiyat, tarih dolu' },
       { k: 'notes', label: 'Notlar', type: 'textarea' },
+      ...(A._cfFields ? A._cfFields('opps') : []),
     ],
     onSave: async (v) => {
       if (v.start && v.end && v.end < v.start) { const e = new Error(); e.userMsg = 'Bitiş tarihi başlangıçtan önce olamaz.'; throw e; }
@@ -155,7 +163,7 @@ export function weddingForm(rec) {
   openForm({
     title: rec ? 'Düğün teklifini düzenle' : 'Yeni düğün teklifi',
     wide: true,
-    data: rec ? { ...rec, items: itemsOf('weddings', rec) } : { stage: 'talep', currency: 'TRY', ownerId: S.user.uid, venue: S.settings.properties[0], validUntil: addDays(today(), 15),
+    data: rec ? { ...rec, items: itemsForForm('weddings', rec) } : { stage: 'talep', currency: 'TRY', ownerId: S.user.uid, venue: S.settings.properties[0], validUntil: addDays(today(), 15),
       items: [] },
     fields: [
       { k: 'couple', label: 'Çift', req: true, ph: 'ör. Elif & Mert' },
@@ -171,10 +179,13 @@ export function weddingForm(rec) {
       { k: 'deposit', label: 'İstenen kapora', type: 'number', half: true },
       { k: 'depositPaid', label: 'Alınan kapora', type: 'number', half: true },
       { k: 'validUntil', label: 'Teklif geçerlilik', type: 'date', half: true },
+      { k: 'segment', label: 'Pazar segmenti', type: 'select', opts: listOpts(S.settings.segments), half: true, def: 'Düğün & sosyal etkinlik' },
+      { k: 'channel', label: 'Satış kanalı', type: 'select', opts: listOpts(S.settings.channels), half: true },
       { k: 'source', label: 'Kaynak', type: 'select', opts: listOpts(S.settings.sources), half: true },
       { k: 'ownerId', label: 'Sorumlu', type: 'select', opts: userOpts(), half: true },
       { k: 'lossReason', label: 'Kayıp nedeni', half: true },
       { k: 'notes', label: 'Notlar', type: 'textarea' },
+      ...(A._cfFields ? A._cfFields('weddings') : []),
     ],
     onSave: async (v) => {
       if (v.stage !== (rec && rec.stage)) v.stageAt = Date.now();

@@ -1,6 +1,6 @@
 import {
   S, A, V, $, $$, esc, ic, ROLES, OPP_STAGES, OPP_KINDS, WED_STAGES, ACT_TYPES, ACC_TYPES, DEFAULT_SETTINGS, MON3, today, fmtDate, money, moneyMap, sumByCur,
-  num, fmtNum, sortBy, wedTotal, taxCfg, KDV_OPTS, MODE_OPTS, QTY_RULES, CURS, kvOpts, presetsOf, lastContact, can, toast, errText, openForm, closeModal, infoModal, confirmBox, copyText, stamp, userName, fmtTs,
+  num, fmtNum, sortBy, wedTotal, initials, taxCfg, KDV_OPTS, MODE_OPTS, QTY_RULES, CURS, kvOpts, presetsOf, DEPTS, deptOf, lastContact, can, toast, errText, openForm, closeModal, infoModal, confirmBox, copyText, stamp, userName, fmtTs,
 } from './core.js';
 import { localStore, firebaseStore, authMessage, COLS } from './store.js';
 import { renderShell, renderView, renderBody, refresh, renderSheet, guestStats } from './views.js';
@@ -13,6 +13,12 @@ import { blBanner, blBadge, blSheet, BL_REASONS } from './blacklist.js';
 import { handleGuestFile } from './guestimport.js';
 import { mailSettingsCard } from './mail.js';
 import { revCard, revBadge } from './revisions.js';
+import './search.js';
+import './builder.js';
+A._openForm = openForm;
+import { cfFormFields, cfCard, cfPairs, applyStages, cfOf, CF_COLS } from './customize.js';
+import { applyBrand } from './views.js';
+A._cfFields = cfFormFields; A._cfCard = cfCard; A._cfPairs = cfPairs; A._applyBrand = applyBrand;
 A._revCard = revCard; A._revBadge = revBadge;
 import { saveFile } from './print.js';
 A._saveFile = saveFile;
@@ -75,17 +81,19 @@ V.reports = {
 /* ================= AYARLAR ================= */
 const lines = (s) => String(s || '').split('\n').map((x) => x.trim()).filter(Boolean);
 A.editSettings = () => openForm({
-  title: 'Otel bilgileri ve listeler', data: { ...S.settings, properties: S.settings.properties.join('\n'), sources: S.settings.sources.join('\n'), tKdv: taxCfg().kdv, tKv: taxCfg().kv, tMode: taxCfg().mode },
+  title: 'Otel bilgileri ve listeler', data: { ...S.settings, properties: S.settings.properties.join('\n'), sources: S.settings.sources.join('\n'), segments: S.settings.segments.join('\n'), channels: S.settings.channels.join('\n'), tKdv: taxCfg().kdv, tKv: taxCfg().kv, tMode: taxCfg().mode },
   fields: [
     { k: 'hotelName', label: 'Otel / işletme adı', req: true }, { k: 'phone', label: 'Telefon', type: 'tel', half: true }, { k: 'email', label: 'E-posta', type: 'email', half: true }, { k: 'address', label: 'Adres' },
     { k: 'properties', label: 'Tesisler / mekânlar', type: 'textarea', hint: 'Her satıra bir tane. Talep ve düğün formlarındaki listelerde çıkar.' },
+    { k: 'segments', label: 'Pazar segmentleri', type: 'textarea', hint: 'Her satıra bir tane. Talep, düğün ve acentelerde seçilir; raporlar bu listeye göre gruplanır.' },
+    { k: 'channels', label: 'Satış kanalları', type: 'textarea', hint: 'Her satıra bir tane.' },
     { k: 'sources', label: 'Talep kaynakları', type: 'textarea', hint: 'Her satıra bir tane.' },
     { type: 'section', label: 'Teklif vergileri (yeni kalemlerde varsayılan)' },
     { k: 'tKdv', label: 'Varsayılan KDV %', type: 'number', list: 'dlKdv', req: true, half: true },
     { k: 'tKv', label: 'Konaklama vergisi oranı %', type: 'number', list: 'dlKv', req: true, half: true, hint: 'Konaklama kalemlerine otomatik gelir; her teklifte kalem bazında değiştirilebilir.' },
     { k: 'tMode', label: 'Vergiler varsayılan olarak', type: 'select', opts: MODE_OPTS, req: true },
   ],
-  onSave: async (v) => { const { tKdv, tKv, tMode, ...rest } = v; await S.store.save('settings', { ...S.settings, ...rest, id: 'main', properties: lines(v.properties), sources: lines(v.sources), tax: { kdv: num(tKdv), kv: num(tKv), mode: tMode, v2: true } }); toast('Kaydedildi'); },
+  onSave: async (v) => { const { tKdv, tKv, tMode, ...rest } = v; await S.store.save('settings', { ...S.settings, ...rest, id: 'main', properties: lines(v.properties), sources: lines(v.sources), segments: lines(v.segments), channels: lines(v.channels), tax: { kdv: num(tKdv), kv: num(tKv), mode: tMode, v2: true } }); toast('Kaydedildi'); },
 });
 A.newUser = () => openForm({
   title: 'Yeni kullanıcı', saveLabel: 'Kullanıcıyı oluştur',
@@ -111,13 +119,13 @@ A.presetEdit = (el) => {
   openForm({
     title: col === 'opps' ? 'Grup & etkinlik · hazır kalemler' : 'Düğün · hazır kalemler', wide: true, saveLabel: adm ? 'Kaydet' : 'Kapat',
     intro: `<p class="muted" style="margin-top:0">Ad boş bırakılan kalem "Özel kalem" düğmesi olur; adı formda yazılır. Fiyat boşsa formda girilir.${adm ? '' : ' Bu listeyi yalnızca yönetici değiştirebilir.'}</p>`,
-    data: { list: presetsOf(col).map((p) => ({ ...p, kdv: String(p.kdv), kv: String(p.kv), mode: p.mode || '' })) },
-    fields: [{ k: 'list', label: 'Kalemler', type: 'rows', cls: 'presets', keepEmpty: true, addLabel: 'Kalem ekle', heads: ['Kalem adı', 'Miktar nasıl hesaplansın', 'Varsayılan fiyat', 'Para birimi', 'KDV %', 'Konaklama V. %', 'Vergiler'],
+    data: { list: presetsOf(col).map((p) => ({ ...p, kdv: String(p.kdv), kv: String(p.kv), mode: p.mode || '', dept: p.dept || deptOf(p) })) },
+    fields: [{ k: 'list', label: 'Kalemler', type: 'rows', cls: 'presets', keepEmpty: true, addLabel: 'Kalem ekle', heads: ['Kalem adı', 'Miktar nasıl hesaplansın', 'Varsayılan fiyat', 'Para birimi', 'KDV %', 'Konaklama V. %', 'Vergiler', 'Departman'],
       sub: [{ k: 'name', ph: 'Kalem adı (boş = Özel kalem)' }, { k: 'rule', type: 'select', opts: QTY_RULES, req: true, def: 'adet' }, { k: 'price', type: 'number', ph: 'Fiyat' }, { k: 'cur', type: 'select', opts: CURS, req: true, def: 'TRY' },
-        { k: 'kdv', type: 'number', ph: '%', list: 'dlKdv', max: 100, def: taxCfg().kdv }, { k: 'kv', type: 'number', ph: '%', list: 'dlKv', max: 100, def: 0 }, { k: 'mode', type: 'select', opts: [['', 'Ayara göre'], ...MODE_OPTS], req: true, def: '' }] }],
+        { k: 'kdv', type: 'number', ph: '%', list: 'dlKdv', max: 100, def: taxCfg().kdv }, { k: 'kv', type: 'number', ph: '%', list: 'dlKv', max: 100, def: 0 }, { k: 'mode', type: 'select', opts: [['', 'Ayara göre'], ...MODE_OPTS], req: true, def: '' }, { k: 'dept', type: 'select', opts: DEPTS, req: true, def: 'diger' }] }],
     onSave: async (v) => {
       if (!adm) return;
-      const list = (v.list || []).map((p, i) => ({ id: 'p' + i, name: p.name, rule: p.rule || 'adet', price: p.price === '' ? '' : num(p.price), cur: p.cur || 'TRY', kdv: num(p.kdv), kv: num(p.kv), mode: p.mode || '' }));
+      const list = (v.list || []).map((p, i) => ({ id: 'p' + i, name: p.name, rule: p.rule || 'adet', price: p.price === '' ? '' : num(p.price), cur: p.cur || 'TRY', kdv: num(p.kdv), kv: num(p.kv), mode: p.mode || '', dept: p.dept || 'diger' }));
       const { id, ...rest } = S.settings; await S.store.save('settings', { ...rest, id: 'main', tax: { ...taxCfg(), v2: true }, presets: { ...(S.settings.presets || {}), [col]: list } }); toast('Hazır kalemler kaydedildi');
     },
   });
@@ -134,24 +142,33 @@ V.settings = {
   body: () => {
     const fb = S.store.kind === 'firebase', adm = can.admin(), st = S.settings;
     const perms = [['Yönetici', 'Her şeyi görür ve düzenler; kullanıcıları, ayarları yönetir; kayıt siler.'], ['Satış', 'Acente, misafir, talep, düğün, aktivite ve görev ekler/düzenler. Kayıt silemez.'], ['Ön büro', 'Misafir kayıtlarını, görevleri ve aktiviteleri ekler/düzenler; diğerlerini yalnızca görür.'], ['İzleyici', 'Her şeyi görür, hiçbir şeyi değiştiremez.']];
-    return `<div class="grid g2">
-      <div class="card pad"><h3>Otel bilgileri</h3><dl class="dl"><dt>İşletme</dt><dd>${esc(st.hotelName)}</dd><dt>Telefon</dt><dd>${esc(st.phone || '—')}</dd><dt>E-posta</dt><dd>${esc(st.email || '—')}</dd><dt>Tesisler</dt><dd>${esc(st.properties.join(', '))}</dd><dt>Kaynaklar</dt><dd>${esc(st.sources.join(', '))}</dd><dt>Teklif vergileri</dt><dd>KDV %${taxCfg().kdv} · Konaklama vergisi %${taxCfg().kv} · ${taxCfg().mode === 'ekle' ? 'eklenecek' : 'dahil'}</dd></dl>
+    const tab = S.f.st || 'genel';
+    const T = [['genel', 'Genel'], ['satis', 'Satış'], ['ozel', 'Özelleştirme'], ['sablon', 'Şablonlar ve e-posta'], ['ekip', 'Ekip'], ['veri', 'Veri ve yedek']];
+    return `<div class="chips">${T.map(([k, l]) => `<button class="chip ${tab === k ? 'on' : ''}" data-act="filter" data-k="st" data-v="${k}">${l}</button>`).join('')}</div>
+    <div class="grid g2 setgrid st-${tab}">
+      <div class="card pad stc stc-genel"><h3>Logo ve marka rengi</h3><div style="display:flex;gap:12px;align-items:center"><span class="brand" style="padding:0">${S.settings.brand && S.settings.brand.logo ? `<img src="${esc(S.settings.brand.logo)}" alt="" style="width:44px;height:44px;border:1px solid var(--line)">` : `<span class="mark" style="width:44px;height:44px">${esc(initials(st.hotelName))}</span>`}</span><span class="muted">Menüde ve giriş ekranında görünür; marka rengi düğme ve vurgularda kullanılır.</span></div>${adm ? `<div style="margin-top:12px"><button class="btn" data-act="brandEdit">${ic('pencil')} Değiştir</button></div>` : ''}</div>
+      <div class="card pad stc stc-satis"><h3>Satış aşamaları</h3><p class="muted" style="margin-top:0">Panodaki sütunlar ve raporlardaki huni bu aşamalardan oluşur. Adlarını değiştirebilir, yeni aşama ekleyebilirsiniz.</p>
+        <div class="acts"><button class="btn" data-act="stagesEdit" data-col="opps" ${adm ? '' : 'disabled'}>${ic('handshake')} Grup & etkinlik aşamaları</button><button class="btn" data-act="stagesEdit" data-col="weddings" ${adm ? '' : 'disabled'}>${ic('heart')} Düğün aşamaları</button></div></div>
+      <div class="card pad stc stc-satis"><h3>Segmentler, kanallar ve kaynaklar</h3><dl class="dl"><dt>Segmentler</dt><dd>${esc(st.segments.join(', '))}</dd><dt>Kanallar</dt><dd>${esc(st.channels.join(', '))}</dd><dt>Kaynaklar</dt><dd>${esc(st.sources.join(', '))}</dd><dt>Vergiler</dt><dd>KDV %${taxCfg().kdv} · Konaklama vergisi %${taxCfg().kv} · ${taxCfg().mode === 'ekle' ? 'eklenecek' : 'dahil'}</dd></dl>${adm ? `<div style="margin-top:12px"><button class="btn" data-act="editSettings">${ic('pencil')} Düzenle</button></div>` : ''}</div>
+      <div class="card stc stc-ozel" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px"><h3>Özel alanlar</h3><p class="muted" style="margin:0 0 6px">Her kayıt türüne kendi alanlarınızı ekleyin. Formda, detayda, çıktılarda ve rapor oluşturucuda kullanılır.</p></div>
+        <div class="list">${CF_COLS.map(([c, l]) => `<div class="row"><div class="t"><b>${l}</b><span>${cfOf(c).length ? esc(cfOf(c).map((f) => f.label).join(', ')) : 'Özel alan yok'}</span></div>${adm ? `<button class="btn sm" data-act="cfEdit" data-col="${c}">${ic('pencil')} Düzenle</button>` : ''}</div>`).join('')}</div></div>
+      <div class="card pad stc stc-genel"><h3>Otel bilgileri</h3><dl class="dl"><dt>İşletme</dt><dd>${esc(st.hotelName)}</dd><dt>Telefon</dt><dd>${esc(st.phone || '—')}</dd><dt>E-posta</dt><dd>${esc(st.email || '—')}</dd><dt>Tesisler</dt><dd>${esc(st.properties.join(', '))}</dd></dl>
         ${adm ? `<div style="margin-top:14px"><button class="btn" data-act="editSettings">${ic('pencil')} Düzenle</button></div>` : ''}</div>
-      <div class="card pad"><h3>Excel</h3><p class="muted" style="margin-top:0">Toplu kayıt aktarın ya da tüm veriyi yedek olarak indirin. Aynı adla kayıtlı acenteler atlanır; misafirlerde yeni konaklamalar mevcut kayda eklenir.</p>
+      <div class="card pad stc stc-veri"><h3>Excel</h3><p class="muted" style="margin-top:0">Toplu kayıt aktarın ya da tüm veriyi yedek olarak indirin. Aynı adla kayıtlı acenteler atlanır; misafirlerde yeni konaklamalar mevcut kayda eklenir.</p>
         <div class="acts">${can.edit('accounts') ? `<button class="btn" data-act="importPick" data-col="accounts">${ic('upload')} Acente içe aktar</button>` : ''}${can.edit('guests') ? `<button class="btn" data-act="guestImport">${ic('upload')} Misafir içe aktar</button>` : ''}<button class="btn" data-act="exportAll">${ic('download')} Tüm veriyi indir</button></div>
         <div class="acts" style="margin-top:8px"><button class="linkbtn" data-act="template" data-col="accounts">Acente şablonu</button><button class="linkbtn" data-act="guestTemplate">Misafir şablonu</button></div></div>
-      <div class="card pad" style="grid-column:1/-1"><h3>Teklif metinleri</h3><p class="muted" style="margin-top:0">Tekliflerin ana metni. İçindeki <code>{çift}</code>, <code>{tarih}</code>, <code>{toplam}</code> gibi etiketler her teklifte kayıttaki bilgiyle dolar; teklif Word, PDF, WhatsApp ya da e-posta olarak gönderilmeye hazır olur.</p>
+      <div class="card pad stc stc-sablon" style="grid-column:1/-1"><h3>Teklif metinleri</h3><p class="muted" style="margin-top:0">Tekliflerin ana metni. İçindeki <code>{çift}</code>, <code>{tarih}</code>, <code>{toplam}</code> gibi etiketler her teklifte kayıttaki bilgiyle dolar; teklif Word, PDF, WhatsApp ya da e-posta olarak gönderilmeye hazır olur.</p>
         <div class="acts"><button class="btn ${adm ? 'pri' : ''}" data-act="tplOpen" data-col="weddings">${ic('heart')} Düğün teklifi metni</button><button class="btn" data-act="tplOpen" data-col="opps">${ic('handshake')} Grup & etkinlik teklifi metni</button></div>
         <p class="muted" style="font-size:12.5px;margin:10px 0 0">${S.settings.templates && S.settings.templates.weddings ? 'Düğün teklifi için kendi metniniz kullanılıyor.' : 'Şu an örnek metin kullanılıyor; kendi metninizi yapıştırın.'}</p></div>
-      <div class="card pad" style="grid-column:1/-1"><h3>Hazır teklif kalemleri</h3><p class="muted" style="margin-top:0">Teklif formundaki hazır kalem düğmeleri (Konaklama, Coffee break, Öğle yemeği, Akşam yemeği, salon kullanımı…). Adını, varsayılan fiyatını, vergisini ve miktarın nasıl hesaplanacağını buradan belirleyin; yeni kalem ekleyin.</p>
+      <div class="card pad stc stc-satis" style="grid-column:1/-1"><h3>Hazır teklif kalemleri</h3><p class="muted" style="margin-top:0">Teklif formundaki hazır kalem düğmeleri (Konaklama, Coffee break, Öğle yemeği, Akşam yemeği, salon kullanımı…). Adını, varsayılan fiyatını, vergisini ve miktarın nasıl hesaplanacağını buradan belirleyin; yeni kalem ekleyin.</p>
         <div class="acts"><button class="btn" data-act="presetEdit" data-col="opps">${ic('handshake')} Grup & etkinlik kalemleri</button><button class="btn" data-act="presetEdit" data-col="weddings">${ic('heart')} Düğün kalemleri</button></div></div>
-      ${cardsSettingsCard()}
-      ${mailSettingsCard()}
-      ${fb ? `<div class="card" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Kullanıcılar</h3>${adm ? `<button class="btn sm pri" data-act="newUser">${ic('plus')} Kullanıcı</button>` : ''}</div>
+      <div class="stc stc-sablon" style="grid-column:1/-1">${cardsSettingsCard()}</div>
+      <div class="stc stc-sablon" style="grid-column:1/-1">${mailSettingsCard()}</div>
+      ${fb ? `<div class="card stc stc-ekip" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px;display:flex;align-items:center"><h3 style="margin:0;flex:1">Kullanıcılar</h3>${adm ? `<button class="btn sm pri" data-act="newUser">${ic('plus')} Kullanıcı</button>` : ''}</div>
         <div class="list">${sortBy(S.data.users, (u) => u.name || '').map((u) => `<div class="row"><div class="av">${esc((u.name || '?').slice(0, 1).toLocaleUpperCase('tr-TR'))}</div><div class="t"><b>${esc(u.name)}${u.id === S.user.uid ? ' (siz)' : ''}</b><span>${esc(u.email)}</span></div>
           <div class="r"><span class="badge ${u.active === false ? 'red' : 'teal'}">${u.active === false ? 'Kapalı' : esc(ROLES[u.role] || u.role)}</span></div>${adm ? `<div class="acts"><button class="btn sm" data-act="resetUserPass" data-id="${u.id}" title="Şifre sıfırlama e-postası gönder">Şifre</button><button class="btn sm" data-act="editUser" data-id="${u.id}" aria-label="Düzenle">${ic('pencil')}</button></div>` : ''}</div>`).join('')}</div></div>` : ''}
-      <div class="card pad"><h3>Roller</h3><dl class="dl">${perms.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>
-      <div class="card pad"><h3>Bağlantı</h3>${fb ? `<p style="margin-top:0">Ekip bulutu bağlı: <b>${esc(S.store.projectId || '')}</b><br><span class="muted">${esc(S.user.email)} · ${esc(ROLES[S.user.role])}</span></p>
+      <div class="card pad stc stc-ekip"><h3>Roller</h3><dl class="dl">${perms.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>
+      <div class="card pad stc stc-genel"><h3>Bağlantı</h3>${fb ? `<p style="margin-top:0">Ekip bulutu bağlı: <b>${esc(S.store.projectId || '')}</b><br><span class="muted">${esc(S.user.email)} · ${esc(ROLES[S.user.role])}</span></p>
           <div class="acts">${adm ? `<button class="btn" data-act="showRules">Güvenlik kuralları</button>` : ''}${adm && !BAKED_CONFIG ? `<button class="btn" data-act="copyCfgCode">${ic('copy')} Bağlantı kodunu kopyala</button>` : ''}<button class="btn" data-act="logout">${ic('logout')} Çıkış yap</button>${!BAKED_CONFIG ? '<button class="btn danger" data-act="disconnect">Bağlantıyı kaldır</button>' : ''}</div>
           ${adm && !BAKED_CONFIG ? '<p class="muted" style="font-size:13px;margin-bottom:0">Bağlantı kodu: ekip arkadaşlarınız uygulamayı ilk açtıklarında "Ekip bulutuna bağlan" ekranına bu kodu yapıştırır.</p>' : ''}`
         : `<p style="margin-top:0"><b>Demo modu.</b> <span class="muted">Kayıtlar yalnızca bu cihazda.</span></p><div class="acts"><button class="btn" data-act="loadSample">Örnek verileri yükle</button>${S.data.accounts.concat(S.data.guests, S.data.opps, S.data.weddings).some((x) => x.sample) ? '<button class="btn danger" data-act="wipeSample">Örnekleri sil</button>' : ''}<button class="btn pri" data-act="leaveDemo">Ekip bulutuna bağlan</button></div>`}
@@ -204,7 +221,7 @@ async function gateSubmit(form) {
 /* ================= AÇILIŞ ================= */
 function subscribeAll() {
   COLS.forEach((c) => S.store.subscribe(c, (list) => { S.data[c] = list; refresh(); }));
-  S.store.subscribeDoc('settings', 'main', (d) => { S.settings = { ...DEFAULT_SETTINGS, ...(d || {}) }; if (!S.settings.properties.length) S.settings.properties = DEFAULT_SETTINGS.properties; const b = $('.brand b'); if (b) b.textContent = S.settings.hotelName; refresh(); });
+  S.store.subscribeDoc('settings', 'main', (d) => { const prevBrand = JSON.stringify(S.settings.brand || {}) + S.settings.hotelName; S.settings = { ...DEFAULT_SETTINGS, ...(d || {}) }; applyStages(); if (S.gate === 'in' && prevBrand !== JSON.stringify(S.settings.brand || {}) + S.settings.hotelName) setTimeout(() => renderShell(), 0); if (!S.settings.properties.length) S.settings.properties = DEFAULT_SETTINGS.properties; const b = $('.brand b'); if (b) b.textContent = S.settings.hotelName; refresh(); });
   if (S.store.kind === 'firebase') S.store.subscribe('users', (list) => { S.data.users = list; refresh(); });
   else S.data.users = [{ id: S.user.uid, name: S.user.name, role: 'yonetici', active: true }];
 }
@@ -234,6 +251,7 @@ function boot() {
 document.addEventListener('click', (ev) => {
   const ov = ev.target.classList && ev.target.classList.contains('ov') ? ev.target : null;
   if (ov) { if (ov.closest('#sheet')) A.closeSheet(); else if (ov.closest('#modal') && !$('#frm')) closeModal(); return; }
+  if (!ev.target.closest('.qwrap') || ev.target.closest('[data-qa]')) { const qp = $('#qaPop'); if (qp && qp.innerHTML) qp.innerHTML = ''; }
   if (ev.target.closest('a[href]:not([data-act])')) return;
   const el = ev.target.closest('[data-act]'); if (!el) return;
   if (el.tagName === 'A') ev.preventDefault();
