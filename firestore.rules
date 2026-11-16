@@ -101,6 +101,11 @@ service cloud.firestore {
       allow create, update: if canSales();
       allow delete: if isAdmin() || (canSales() && resource.data.createdBy == uid());
     }
+    match /campaigns/{id} {
+      allow read: if signed();
+      allow create, update: if canSales();
+      allow delete: if isAdmin() || (canSales() && resource.data.createdBy == uid());
+    }
     match /visits/{id} {
       allow read: if signed();
       allow create, update: if canSales();

@@ -38,7 +38,7 @@ function messageFor(ev, override) {
 }
 
 /* ---------- gönderim ---------- */
-async function post(payload) {
+export async function post(payload) {
   const c = cfg();
   const res = await fetch(c.url, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token: c.token, fromName: c.fromName || S.settings.hotelName, replyTo: c.replyTo || S.settings.email || '', ...payload }) });
   const txt = await res.text(); let j; try { j = JSON.parse(txt); } catch (e) { throw new Error('Gönderim servisi beklenmedik yanıt verdi. Script "Herkes" erişimiyle dağıtıldı mı?'); }

@@ -1,7 +1,7 @@
 import {
   House, Building2, Users, Handshake, Heart, ListChecks, CalendarDays, ChartColumn, Settings, Plus, Search, X, Phone, Mail,
   MessageCircle, Check, ChevronLeft, ChevronRight, Printer, Download, Upload, Pencil, Menu, MapPin, StickyNote,
-  Presentation, Share2, LogOut, Briefcase, Flag, Cake, TriangleAlert, Copy, BedDouble, Ban, SlidersHorizontal, TrendingUp, TrendingDown, ArrowUpDown, Columns3, Table2, LayoutGrid, Target, Layers,
+  Presentation, Share2, LogOut, Briefcase, Flag, Cake, TriangleAlert, Copy, BedDouble, Ban, SlidersHorizontal, TrendingUp, TrendingDown, ArrowUpDown, Columns3, Table2, LayoutGrid, Target, Layers, Gift,
 } from 'lucide';
 
 const ICONS = {
@@ -9,7 +9,7 @@ const ICONS = {
   chart: ChartColumn, settings: Settings, plus: Plus, search: Search, x: X, phone: Phone, mail: Mail, wa: MessageCircle,
   check: Check, left: ChevronLeft, right: ChevronRight, printer: Printer, download: Download, upload: Upload, pencil: Pencil,
   menu: Menu, pin: MapPin, note: StickyNote, meeting: Presentation, share: Share2, logout: LogOut, briefcase: Briefcase,
-  flag: Flag, cake: Cake, warn: TriangleAlert, copy: Copy, bed: BedDouble, ban: Ban, sliders: SlidersHorizontal, up: TrendingUp, down: TrendingDown, sort: ArrowUpDown, cols: Columns3, table: Table2, grid: LayoutGrid, target: Target, layers: Layers,
+  flag: Flag, cake: Cake, warn: TriangleAlert, copy: Copy, bed: BedDouble, ban: Ban, sliders: SlidersHorizontal, up: TrendingUp, down: TrendingDown, sort: ArrowUpDown, cols: Columns3, table: Table2, grid: LayoutGrid, target: Target, layers: Layers, gift: Gift,
 };
 export const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${(ICONS[n] || []).map(([t, a]) => `<${t} ${Object.entries(a).map(([k, v]) => `${k}="${v}"`).join(' ')}/>`).join('')}</svg>`;
 
@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS = {
 /* ---------- durum ---------- */
 export const S = {
   store: null, gate: 'loading', gateInfo: {}, user: null, view: 'pano', q: '', f: {},
-  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], blacklist: [], reports: [], targets: [], visits: [], rates: [], blocks: [], events: [], users: [] },
+  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], blacklist: [], reports: [], targets: [], visits: [], rates: [], blocks: [], events: [], campaigns: [], users: [] },
   settings: { ...DEFAULT_SETTINGS }, sheet: null, calMonth: null, repYear: new Date().getFullYear(),
 };
 export const A = {}; // eylemler (data-act)

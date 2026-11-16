@@ -9,7 +9,7 @@ import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, r
 export const NAV_GROUPS = [
   ['Genel', [['pano', 'Pano', 'house'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar']]],
   ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart'], ['visits', 'Ziyaret planı', 'briefcase'], ['blocks', 'Allotman & bloklar', 'layers'], ['mice', 'Salon & banket', 'meeting']]],
-  ['Misafir', [['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban']]],
+  ['Misafir', [['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban'], ['loyalty', 'Pazarlama & sadakat', 'gift']]],
   ['Gelir yönetimi', [['perf', 'Otel performansı', 'bed'], ['budget', 'Gelir bütçesi', 'target'], ['rates', 'Oda fiyatları', 'list']]],
   ['Yönetim', [['exec', 'Yönetici özeti', 'meeting'], ['goals', 'Satış hedefleri', 'users'], ['ledger', 'Satış kayıtları', 'table']]],
   ['Analiz', [['reports', 'Genel raporlar', 'chart'], ['builder', 'Rapor oluşturucu', 'sliders']]],
@@ -403,6 +403,7 @@ const SHEETS = {
       <div class="kpis" style="margin:0"><div class="kpi"><small>Konaklama</small><b>${s.n}</b></div><div class="kpi"><small>Gece</small><b>${s.nights}</b></div><div class="kpi"><small>Son giriş</small><b style="font-size:18px">${s.last ? fmtDate(s.last) : '—'}</b></div></div>
       <div class="card pad"><h3>Bilgiler</h3>${dl([['Konum', [g.city, g.country].filter(Boolean).join(', ')], ['Telefon', g.phone], ['E-posta', g.email], ['Doğum günü', g.birthday ? fmtDateLong(g.birthday) : ''], ['Yıl dönümü', g.anniversary ? fmtDateLong(g.anniversary) : ''], ['Tercihler', g.prefs], ['Notlar', g.notes]]) || '<span class="muted">Bilgi girilmemiş.</span>'}</div>
       <div class="card pad"><h3>Konaklama geçmişi</h3>${st.length ? `<div class="scroll-x"><table class="tb"><tr><th>Tarih</th><th>Tesis</th><th>Oda</th><th class="n">Tutar</th></tr>${st.map((x) => `<tr><td>${esc(fmtRange(x.checkIn, x.checkOut))}${x.note ? `<br><span class="muted">${esc(x.note)}</span>` : ''}</td><td>${esc(x.property || '')}</td><td>${esc(x.room || '')}</td><td class="n">${x.amount ? fmtNum(x.amount) : ''}</td></tr>`).join('')}</table></div>` : '<span class="muted">Konaklama eklenmemiş. Düzenle\'den ekleyebilirsiniz.</span>'}</div>
+      ${A._loyaltyCard ? A._loyaltyCard(g) : ''}
       ${A._guestOccCard ? A._guestOccCard(g) : ''}
       ${relBlocks('guests', g.id)}${foot(g)}` };
   },
