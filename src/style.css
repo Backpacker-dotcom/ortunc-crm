@@ -385,3 +385,4 @@ h4.grp{margin:16px 2px 6px;font-size:13px;color:#3B4A63;font-weight:600}
 .bgrid .inp.spr{font-weight:600;border-color:var(--primary)}
 .bgrid .inp::placeholder{color:#8A95A8;opacity:1}
 .neg{color:#B4432E}
+.mweek th,.mweek td{min-width:128px;vertical-align:top}.mweek td:first-child,.mweek th:first-child{min-width:130px}.mweek th.today{background:#E3EDF6}.mweek .ev{margin:0 0 4px}.mcell{display:block;width:100%;border:1px dashed var(--line);background:none;border-radius:6px;color:#8A95A8;padding:2px;cursor:pointer;font-size:13px}.mcell:hover{border-color:var(--primary);color:var(--primary)}
