@@ -66,13 +66,13 @@ function demoData() {
 /* ---------- hesap ---------- */
 const SUMK = ['rooms', 'occ', 'pax', 'arr', 'dep', 'newRes', 'cxl', 'roomRev', 'fbRev', 'otherRev', 'totalRev'];
 const derive = (a) => { a.occPct = a.rooms ? (a.occ / a.rooms) * 100 : null; a.adr = a.occ ? a.roomRev / a.occ : null; a.revpar = a.rooms ? a.roomRev / a.rooms : null; return a; };
-const sumRows = (rows) => derive(rows.reduce((a, r) => { SUMK.forEach((k) => { a[k] += r[k] || 0; }); a.n++; return a; }, { ...Object.fromEntries(SUMK.map((k) => [k, 0])), n: 0 }));
-const hotelsOf = (h) => (h === 'all' ? Object.keys(HOTELS) : [h]);
-const rowsOf = (h, a, b) => S.perf.daily.filter((r) => hotelsOf(h).includes(r.hotel) && r.date >= a && r.date <= b);
-const lastDate = (h) => sortBy(S.perf.daily.filter((r) => hotelsOf(h).includes(r.hotel)), (r) => r.date, -1).map((r) => r.date)[0] || '';
+export const sumRows = (rows) => derive(rows.reduce((a, r) => { SUMK.forEach((k) => { a[k] += r[k] || 0; }); a.n++; return a; }, { ...Object.fromEntries(SUMK.map((k) => [k, 0])), n: 0 }));
+export const hotelsOf = (h) => (h === 'all' ? Object.keys(HOTELS) : [h]);
+export const rowsOf = (h, a, b) => S.perf.daily.filter((r) => hotelsOf(h).includes(r.hotel) && r.date >= a && r.date <= b);
+export const lastDate = (h) => sortBy(S.perf.daily.filter((r) => hotelsOf(h).includes(r.hotel)), (r) => r.date, -1).map((r) => r.date)[0] || '';
 const ly = (d) => `${Number(d.slice(0, 4)) - 1}${d.slice(4)}`;
 // raporun kendi dönem toplamları (ay/yıl): satırdaki _mtd/_ytd alanları; yoksa saklanan günlerden
-function period(h, d, suf) {
+export function period(h, d, suf) {
   const pick = hotelsOf(h).map((ht) => S.perf.daily.find((r) => r.hotel === ht && r.date === d)).filter(Boolean);
   const from = suf === '_mtd' ? d.slice(0, 8) + '01' : d.slice(0, 5) + '01-01';
   if (pick.length === hotelsOf(h).length && pick.every((r) => r['occ' + suf] != null && r['rooms' + suf] != null)) {
@@ -80,14 +80,14 @@ function period(h, d, suf) {
   }
   return Object.assign(sumRows(rowsOf(h, from, d)), { src: 'kayit' });
 }
-function periodLy(h, d, suf) {
+export function periodLy(h, d, suf) {
   const from = suf === '_mtd' ? ly(d).slice(0, 8) + '01' : ly(d).slice(0, 5) + '01-01';
   const stored = rowsOf(h, from, ly(d)); const days = Math.round((new Date(ly(d)) - new Date(from)) / 864e5) + 1;
   if (stored.length >= days * hotelsOf(h).length * 0.9) return Object.assign(sumRows(stored), { src: 'kayit' });
   if (h === 'ortunc') { const r = S.perf.daily.find((x) => x.hotel === 'ortunc' && x.date === d); const lsuf = suf === '_mtd' ? '_lymtd' : '_lyytd'; if (r && r['occ' + lsuf] != null) return derive(SUMK.reduce((a, k) => { a[k] = r[k + lsuf] || 0; return a; }, { src: 'rapor' })); }
   return null;
 }
-function dayLy(h, d) {
+export function dayLy(h, d) {
   const stored = rowsOf(h, ly(d), ly(d)); if (stored.length === hotelsOf(h).length) return sumRows(stored);
   if (h === 'ortunc') { const r = S.perf.daily.find((x) => x.hotel === 'ortunc' && x.date === d); if (r && r.occ_ly != null) return derive(SUMK.reduce((a, k) => { a[k] = r[k + '_ly'] || 0; return a; }, {})); }
   return null;

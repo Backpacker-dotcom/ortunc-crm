@@ -8,9 +8,10 @@ import { accountForm, guestForm, oppForm, weddingForm, activityForm, taskForm, r
 
 export const NAV_GROUPS = [
   ['Genel', [['pano', 'Pano', 'house'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar']]],
-  ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart']]],
+  ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart'], ['visits', 'Ziyaret planı', 'briefcase']]],
   ['Misafir', [['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban']]],
-  ['Analiz', [['perf', 'Otel performansı', 'bed'], ['reports', 'Genel raporlar', 'chart'], ['builder', 'Rapor oluşturucu', 'sliders']]],
+  ['Yönetim', [['exec', 'Yönetici özeti', 'meeting'], ['perf', 'Otel performansı', 'bed'], ['goals', 'Hedefler & bütçe', 'target'], ['ledger', 'Satış kayıtları', 'table']]],
+  ['Analiz', [['reports', 'Genel raporlar', 'chart'], ['builder', 'Rapor oluşturucu', 'sliders']]],
 ];
 export const NAV = [...NAV_GROUPS.flatMap((g) => g[1]), ['settings', 'Ayarlar', 'settings']];
 const TABS = [['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['opps', 'Talepler', 'handshake'], ['weddings', 'Düğün', 'heart']];
@@ -170,7 +171,7 @@ function monthlyChart(cur, prev) {
   cur.forEach((v, i) => { const x = cw * i + cw / 2; s += `<rect x="${x - 15}" y="${y(prev[i])}" width="13" height="${H - pb - y(prev[i])}" fill="#CBD5E2" rx="2"><title>${MON3[i]} geçen yıl: ${money(prev[i])}</title></rect><rect x="${x + 1}" y="${y(v)}" width="13" height="${H - pb - y(v)}" fill="var(--primary)" rx="2"><title>${MON3[i]}: ${money(v)}</title></rect><text x="${x}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#69768D">${MON3[i]}</text>`; });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:240px" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Aylık kesinleşen gelir grafiği">${s}</svg>`;
 }
-export const DASH_WIDGETS = [['perf', 'Dün otelde (gece raporu)'], ['monthly', 'Aylık kesinleşen gelir'], ['due', 'Takipler · 7 gün'], ['events', 'Yaklaşan etkinlikler'], ['funnel', 'Grup & etkinlik hunisi'], ['segments', 'Segment dağılımı'], ['special', 'Misafir özel günleri'], ['attention', 'Dikkat (kontrat, temas)'], ['acts', 'Son aktiviteler']];
+export const DASH_WIDGETS = [['perf', 'Dün otelde (gece raporu)'], ['goals', 'Bütçe gerçekleşme'], ['monthly', 'Aylık kesinleşen gelir'], ['due', 'Takipler · 7 gün'], ['events', 'Yaklaşan etkinlikler'], ['funnel', 'Grup & etkinlik hunisi'], ['segments', 'Segment dağılımı'], ['special', 'Misafir özel günleri'], ['attention', 'Dikkat (kontrat, temas)'], ['acts', 'Son aktiviteler']];
 const dashCfg = () => { try { const c = JSON.parse(localStorage.getItem('ortunc-crm.dash') || 'null'); if (c && Array.isArray(c.order)) { DASH_WIDGETS.forEach(([k]) => { if (!c.order.includes(k)) c.order.push(k); }); return c; } } catch (e) { /* yok */ } return { order: DASH_WIDGETS.map((w) => w[0]), hidden: [] }; };
 A.dashEdit = () => {
   const c = dashCfg(); const lbl = Object.fromEntries(DASH_WIDGETS);
@@ -208,6 +209,7 @@ V.pano = {
     const segs = {}; ['opps', 'weddings'].forEach((col) => D()[col].forEach((r) => { if (!WON(col, r) || !evDate(col, r).startsWith(y)) return; const k = r.segment || 'Belirtilmemiş'; segs[k] = (segs[k] || 0) + ((recMetrics(col, r).net || {}).TRY || 0); }));
     const segList = sortBy(Object.entries(segs), (e) => e[1], -1); const segMax = Math.max(1, ...segList.map((e) => e[1]));
     const W = {
+      goals: A._goalsWidget ? A._goalsWidget() : '',
       perf: A._perfWidget ? `<div style="grid-column:1/-1">${A._perfWidget()}</div>` : '',
       monthly: `<div class="card pad" style="grid-column:1/-1"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><h3 style="margin:0">Aylık kesinleşen gelir · ${y}</h3><span class="muted" style="font-size:12.5px">vergiler hariç, ₺, etkinlik tarihine göre · gri: ${yr - 1}</span><button class="btn sm" style="margin-left:auto" data-act="nav" data-v="builder">${ic('sliders')} Rapor oluşturucuda aç</button></div>${monthlyChart(cy.months, ly.months)}</div>`,
       due: `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Takipler · 7 gün</h3></div>${due.length ? `<div class="list">${due.map(taskRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan takip yok.</div>'}</div>`,
@@ -334,6 +336,7 @@ V.cal = {
       ...D().weddings.filter((w) => w.date === day && w.stage !== 'kaybedildi').map((w) => `<button class="ev w" data-act="open" data-col="weddings" data-id="${w.id}">♥ ${esc(w.couple)}</button>`),
       ...D().opps.filter((o) => o.stage !== 'kaybedildi' && o.start && o.start <= day && (o.end || o.start) >= day).map((o) => `<button class="ev" data-act="open" data-col="opps" data-id="${o.id}">${esc(o.title)}</button>`),
       ...D().tasks.filter((t) => !t.done && t.due === day).map((t) => `<button class="ev t" data-act="editTask" data-id="${t.id}">✓ ${esc(t.title)}</button>`),
+      ...(A._visitCalEvents ? A._visitCalEvents(day) : []),
     ];
     return `<div class="card" style="overflow:hidden"><div class="cal">${['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d) => `<div class="dh">${d}</div>`).join('')}
       ${cells.map((c) => { const e = evs(c); return `<div class="d ${c.slice(0, 7) !== S.calMonth ? 'o' : ''} ${c === today() ? 'today' : ''}"><span class="num">${Number(c.slice(8))}</span>${e.slice(0, 3).join('')}${e.length > 3 ? `<span class="muted" style="font-size:11px">+${e.length - 3}</span>` : ''}</div>`; }).join('')}</div></div>
@@ -377,12 +380,13 @@ const SHEETS = {
     const ops = sortBy(D().opps.filter((o) => o.accountId === a.id), (o) => o.start || '', -1);
     return { title: a.name, body: `
       <div class="acts"><span class="badge teal">${esc(ACC_TYPES[a.type] || '')}</span><span class="badge ${a.status === 'aktif' ? 'olive' : 'gold'}">${esc(ACC_STATUS[a.status] || '')}</span></div>
-      <div class="acts">${contactBtns(a.phone, a.email)}${can.edit('opps') ? `<button class="btn sm" data-act="addOppFor" data-id="${a.id}">${ic('plus')} Talep</button>` : ''}</div>
+      <div class="acts">${contactBtns(a.phone, a.email)}${can.edit('opps') ? `<button class="btn sm" data-act="addOppFor" data-id="${a.id}">${ic('plus')} Talep</button><button class="btn sm" data-act="visitNew" data-acc="${a.id}">${ic('briefcase')} Ziyaret planla</button>` : ''}</div>
       <div class="card pad"><h3>Bilgiler</h3>${dl([['Konum', [a.city, a.country].filter(Boolean).join(', ')], ['Pazar', a.market], ['Segment', a.segment], ['Kanal', a.channel], ['Telefon', a.phone], ['E-posta', a.email], ['Web', a.web], ['Sorumlu', userName(a.ownerId)], ['Komisyon', a.commission !== '' && a.commission != null ? '%' + a.commission : ''], ['Kontrat', fmtRange(a.contractStart, a.contractEnd)], ['Kontrat notu', a.contractNote], ['Notlar', a.notes]]) || '<span class="muted">Bilgi girilmemiş.</span>'}</div>
       ${billingCard(a)}
       ${A._filesCard ? A._filesCard('accounts', a.id) : ''}
       <div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yetkili kişiler</h3></div>${(a.contacts || []).length ? `<div class="list">${a.contacts.map((c) => `<div class="row"><div class="av">${esc(initials(c.name))}</div><div class="t"><b>${esc(c.name)}</b><span>${esc([c.title, c.phone, c.email].filter(Boolean).join(' · '))}</span></div><div class="acts">${c.phone ? `<a class="btn sm" href="tel:${esc(c.phone)}" aria-label="Ara">${ic('phone')}</a><a class="btn sm" href="https://wa.me/${waNum(c.phone)}" target="_blank" rel="noopener" aria-label="WhatsApp">${ic('wa')}</a>` : ''}${c.email ? `<a class="btn sm" href="mailto:${esc(c.email)}" aria-label="E-posta">${ic('mail')}</a>` : ''}</div></div>`).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yetkili eklenmemiş.</div>'}</div>
       ${ops.length ? `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Grup & etkinlik talepleri</h3></div><div class="list">${ops.map((o) => `<button class="row" data-act="open" data-col="opps" data-id="${o.id}"><div class="t"><b>${esc(o.title)}</b><span>${esc(fmtRange(o.start, o.end))}</span></div><div class="r"><b>${o.value ? money(o.value, o.currency) : ''}</b>${badge(OPP_STAGES, o.stage)}</div></button>`).join('')}</div></div>` : ''}
+      ${A._visitsOfAcc && A._visitsOfAcc(a.id).length ? `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Ziyaretler</h3></div><div class="list">${A._visitsOfAcc(a.id).slice(0, 8).map((v) => `<button class="row" data-act="visitEdit" data-id="${v.id}"><div class="t"><b>${esc(fmtDate(v.date))} · ${esc(v.purpose || '')}</b><span>${esc(v.ownerName || '')}${v.result ? ' · ' + esc(v.result.slice(0, 90)) : ''}</span></div><span class="badge ${v.status === 'yapildi' ? 'olive' : v.status === 'plan' ? 'teal' : 'gold'}">${v.status === 'yapildi' ? 'Yapıldı' : v.status === 'plan' ? 'Planlandı' : v.status === 'iptal' ? 'İptal' : 'Ertelendi'}</span></button>`).join('')}</div></div>` : ''}
       ${relBlocks('accounts', a.id)}${foot(a)}` };
   },
   guests: (g) => {

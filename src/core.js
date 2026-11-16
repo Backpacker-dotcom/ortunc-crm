@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS = {
 /* ---------- durum ---------- */
 export const S = {
   store: null, gate: 'loading', gateInfo: {}, user: null, view: 'pano', q: '', f: {},
-  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], blacklist: [], reports: [], users: [] },
+  data: { accounts: [], guests: [], opps: [], weddings: [], activities: [], tasks: [], files: [], blacklist: [], reports: [], targets: [], visits: [], users: [] },
   settings: { ...DEFAULT_SETTINGS }, sheet: null, calMonth: null, repYear: new Date().getFullYear(),
 };
 export const A = {}; // eylemler (data-act)
