@@ -10,7 +10,7 @@ export const NAV_GROUPS = [
   ['Genel', [['pano', 'Pano', 'house'], ['tasks', 'Görevler', 'list'], ['cal', 'Takvim', 'calendar']]],
   ['Satış', [['accounts', 'Acenteler & firmalar', 'building'], ['opps', 'Grup & etkinlik', 'handshake'], ['weddings', 'Düğün teklifleri', 'heart']]],
   ['Misafir', [['guests', 'Misafirler', 'users'], ['cel', 'Kutlamalar', 'cake'], ['black', 'Kara liste', 'ban']]],
-  ['Analiz', [['reports', 'Genel raporlar', 'chart'], ['builder', 'Rapor oluşturucu', 'sliders']]],
+  ['Analiz', [['perf', 'Otel performansı', 'bed'], ['reports', 'Genel raporlar', 'chart'], ['builder', 'Rapor oluşturucu', 'sliders']]],
 ];
 export const NAV = [...NAV_GROUPS.flatMap((g) => g[1]), ['settings', 'Ayarlar', 'settings']];
 const TABS = [['pano', 'Pano', 'house'], ['accounts', 'Acenteler', 'building'], ['opps', 'Talepler', 'handshake'], ['weddings', 'Düğün', 'heart']];
@@ -170,7 +170,7 @@ function monthlyChart(cur, prev) {
   cur.forEach((v, i) => { const x = cw * i + cw / 2; s += `<rect x="${x - 15}" y="${y(prev[i])}" width="13" height="${H - pb - y(prev[i])}" fill="#CBD5E2" rx="2"><title>${MON3[i]} geçen yıl: ${money(prev[i])}</title></rect><rect x="${x + 1}" y="${y(v)}" width="13" height="${H - pb - y(v)}" fill="var(--primary)" rx="2"><title>${MON3[i]}: ${money(v)}</title></rect><text x="${x}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#69768D">${MON3[i]}</text>`; });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:240px" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Aylık kesinleşen gelir grafiği">${s}</svg>`;
 }
-export const DASH_WIDGETS = [['monthly', 'Aylık kesinleşen gelir'], ['due', 'Takipler · 7 gün'], ['events', 'Yaklaşan etkinlikler'], ['funnel', 'Grup & etkinlik hunisi'], ['segments', 'Segment dağılımı'], ['special', 'Misafir özel günleri'], ['attention', 'Dikkat (kontrat, temas)'], ['acts', 'Son aktiviteler']];
+export const DASH_WIDGETS = [['perf', 'Dün otelde (gece raporu)'], ['monthly', 'Aylık kesinleşen gelir'], ['due', 'Takipler · 7 gün'], ['events', 'Yaklaşan etkinlikler'], ['funnel', 'Grup & etkinlik hunisi'], ['segments', 'Segment dağılımı'], ['special', 'Misafir özel günleri'], ['attention', 'Dikkat (kontrat, temas)'], ['acts', 'Son aktiviteler']];
 const dashCfg = () => { try { const c = JSON.parse(localStorage.getItem('ortunc-crm.dash') || 'null'); if (c && Array.isArray(c.order)) { DASH_WIDGETS.forEach(([k]) => { if (!c.order.includes(k)) c.order.push(k); }); return c; } } catch (e) { /* yok */ } return { order: DASH_WIDGETS.map((w) => w[0]), hidden: [] }; };
 A.dashEdit = () => {
   const c = dashCfg(); const lbl = Object.fromEntries(DASH_WIDGETS);
@@ -208,6 +208,7 @@ V.pano = {
     const segs = {}; ['opps', 'weddings'].forEach((col) => D()[col].forEach((r) => { if (!WON(col, r) || !evDate(col, r).startsWith(y)) return; const k = r.segment || 'Belirtilmemiş'; segs[k] = (segs[k] || 0) + ((recMetrics(col, r).net || {}).TRY || 0); }));
     const segList = sortBy(Object.entries(segs), (e) => e[1], -1); const segMax = Math.max(1, ...segList.map((e) => e[1]));
     const W = {
+      perf: A._perfWidget ? `<div style="grid-column:1/-1">${A._perfWidget()}</div>` : '',
       monthly: `<div class="card pad" style="grid-column:1/-1"><div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px"><h3 style="margin:0">Aylık kesinleşen gelir · ${y}</h3><span class="muted" style="font-size:12.5px">vergiler hariç, ₺, etkinlik tarihine göre · gri: ${yr - 1}</span><button class="btn sm" style="margin-left:auto" data-act="nav" data-v="builder">${ic('sliders')} Rapor oluşturucuda aç</button></div>${monthlyChart(cy.months, ly.months)}</div>`,
       due: `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Takipler · 7 gün</h3></div>${due.length ? `<div class="list">${due.map(taskRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan takip yok.</div>'}</div>`,
       events: `<div class="card"><div class="pad" style="padding-bottom:4px"><h3>Yaklaşan etkinlikler · 45 gün</h3></div>${ev.length ? `<div class="list">${ev.map(evRow).join('')}</div>` : '<div class="pad muted" style="padding-top:0">Yaklaşan etkinlik yok.</div>'}</div>`,

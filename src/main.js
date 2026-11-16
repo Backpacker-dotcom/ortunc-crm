@@ -15,6 +15,7 @@ import { mailSettingsCard } from './mail.js';
 import { revCard, revBadge } from './revisions.js';
 import './search.js';
 import './builder.js';
+import './perf.js';
 A._openForm = openForm;
 import { cfFormFields, cfCard, cfPairs, applyStages, cfOf, CF_COLS } from './customize.js';
 import { applyBrand } from './views.js';
@@ -152,6 +153,7 @@ V.settings = {
       <div class="card pad stc stc-satis"><h3>Segmentler, kanallar ve kaynaklar</h3><dl class="dl"><dt>Segmentler</dt><dd>${esc(st.segments.join(', '))}</dd><dt>Kanallar</dt><dd>${esc(st.channels.join(', '))}</dd><dt>Kaynaklar</dt><dd>${esc(st.sources.join(', '))}</dd><dt>Vergiler</dt><dd>KDV %${taxCfg().kdv} · Konaklama vergisi %${taxCfg().kv} · ${taxCfg().mode === 'ekle' ? 'eklenecek' : 'dahil'}</dd></dl>${adm ? `<div style="margin-top:12px"><button class="btn" data-act="editSettings">${ic('pencil')} Düzenle</button></div>` : ''}</div>
       <div class="card stc stc-ozel" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px"><h3>Özel alanlar</h3><p class="muted" style="margin:0 0 6px">Her kayıt türüne kendi alanlarınızı ekleyin. Formda, detayda, çıktılarda ve rapor oluşturucuda kullanılır.</p></div>
         <div class="list">${CF_COLS.map(([c, l]) => `<div class="row"><div class="t"><b>${l}</b><span>${cfOf(c).length ? esc(cfOf(c).map((f) => f.label).join(', ')) : 'Özel alan yok'}</span></div>${adm ? `<button class="btn sm" data-act="cfEdit" data-col="${c}">${ic('pencil')} Düzenle</button>` : ''}</div>`).join('')}</div></div>
+      <div class="stc stc-genel">${A._perfSettingsCard ? A._perfSettingsCard() : ''}</div>
       <div class="card pad stc stc-genel"><h3>Otel bilgileri</h3><dl class="dl"><dt>İşletme</dt><dd>${esc(st.hotelName)}</dd><dt>Telefon</dt><dd>${esc(st.phone || '—')}</dd><dt>E-posta</dt><dd>${esc(st.email || '—')}</dd><dt>Tesisler</dt><dd>${esc(st.properties.join(', '))}</dd></dl>
         ${adm ? `<div style="margin-top:14px"><button class="btn" data-act="editSettings">${ic('pencil')} Düzenle</button></div>` : ''}</div>
       <div class="card pad stc stc-veri"><h3>Excel</h3><p class="muted" style="margin-top:0">Toplu kayıt aktarın ya da tüm veriyi yedek olarak indirin. Aynı adla kayıtlı acenteler atlanır; misafirlerde yeni konaklamalar mevcut kayda eklenir.</p>

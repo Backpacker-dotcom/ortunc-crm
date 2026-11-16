@@ -131,7 +131,7 @@ function compute(c) {
     g.forEach((e) => { if (e.gids.size) e.sum.guests = e.gids.size; derive(e.sum); });
     return g;
   };
-  const derive = (s) => { s.winRate = (s.won || 0) + (s.lost || 0) ? (s.won / (s.won + s.lost)) * 100 : null; s.adr = s.rn ? (s.oda || 0) / s.rn : null; s.avg = s.count ? (s.net || 0) / s.count : null; };
+  const derive = (s) => { if (s.cap) { s.occPct = (s.rn / s.cap) * 100; s.revpar = (s.oda || 0) / s.cap; } s.winRate = (s.won || 0) + (s.lost || 0) ? (s.won / (s.won + s.lost)) * 100 : null; s.adr = s.rn ? (s.oda || 0) / s.rn : null; s.avg = s.count ? (s.net || 0) / s.count : null; };
   const r0 = range(c);
   const cur0 = all.filter((r) => inRange(r, r0) && passF(r));
   const cmp = c.compare && c.compare !== 'none' && c.period !== 'all';
@@ -148,7 +148,7 @@ function compute(c) {
 const fmtM = (type, v, cur) => (v == null || Number.isNaN(v) ? '—' : type === 'm' ? money(v, cur) : type === 'p' ? `%${fmtNum(v)}` : type === 'd' ? (v >= 100 ? money(v, cur) : fmtNum(v)) : fmtNum(v));
 const pct = (a, b) => (b ? ((a - b) / Math.abs(b)) * 100 : null);
 const deltaHtml = (a, b) => { const p = pct(a || 0, b || 0); if (p == null) return '<span class="muted">—</span>'; const cls = p >= 0 ? 'olive' : 'red'; return `<span class="badge ${cls}">${p >= 0 ? '+' : ''}${p.toFixed(1).replace('.', ',')}%</span>`; };
-const mtype = (metrics, k) => (k === 'adr' || k === 'avg' ? 'm' : (metrics[k] || [])[1]);
+const mtype = (metrics, k) => (k === 'adr' || k === 'avg' || k === 'revpar' ? 'm' : (metrics[k] || [])[1]);
 
 /* ---------- grafik (SVG) ---------- */
 function chartSvg(groups, metricKey, metrics, cur, cmpMap, kind) {
