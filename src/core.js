@@ -271,7 +271,67 @@ function inputHtml(f, v, attr) {
 function subRowHtml(f, row = {}) {
   return `<div class="subrow ${f.cls || ''}" style="--n:${f.sub.length}">${f.sub.map((s, i) => { const ctl = inputHtml(s, row[s.k], `data-sub="${s.k}" class="inp" aria-label="${esc((f.heads && f.heads[i]) || s.ph || s.k)}"`); return f.heads ? `<label class="sc"><span>${esc(f.heads[i])}</span>${ctl}</label>` : ctl; }).join('')}<button type="button" class="x" data-act="rowDel" title="Satırı sil">${ic('x')}</button></div>`;
 }
+/* acente / firma seçici: arama + "Yeni oluştur" (form kaydedilince firma da kaydedilir) */
+const isAccPick = (f) => f.k === 'accountId' && f.type === 'select';
+function accPickHtml(f, data) {
+  const v = data[f.k] || ''; const cur = v && (S.data.accounts || []).find((a) => a.id === v);
+  const typeOpts = Object.entries(ACC_TYPES).map(([k, l]) => `<option value="${k}" ${k === 'kurumsal' ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  return `<div class="fld ${f.half ? 'half' : ''} accpick-fld"><label for="f_${f.k}_q">${esc(f.label)}${f.req ? ' *' : ''}</label>
+    <div class="accpick" data-accpick="${f.k}"><input type="hidden" name="${f.k}" value="${esc(v)}">
+      <input class="inp" id="f_${f.k}_q" autocomplete="off" autocapitalize="words" placeholder="Firma ara veya yeni ad yaz" value="${esc(cur ? cur.name : '')}" aria-autocomplete="list" role="combobox" aria-expanded="false">
+      <div class="acclist" role="listbox" hidden></div></div>
+    <div class="accnew" hidden><div class="accnew-h">${ic('plus')} <span>Yeni firma · form kaydedilince <b>Acente &amp; firmalar</b> listesine de eklenir</span></div>
+      <label class="sc"><span>Tür</span><select class="inp" data-accnew="type">${typeOpts}</select></label>
+      <button type="button" class="linkbtn" data-accnew="cancel">Vazgeç</button></div>
+    ${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
+}
+function wireAccPick(box, f) {
+  const hid = box.querySelector('input[type=hidden]'); const q = box.querySelector('.inp'); const list = box.querySelector('.acclist');
+  const nw = box.parentElement.querySelector('.accnew');
+  const accs = () => sortBy((S.data.accounts || []).filter((a) => a && a.id && a.name), (a) => trLower(a.name));
+  const setNew = (on) => { nw.hidden = !on; if (on) { hid.value = '__new__'; } else if (hid.value === '__new__') hid.value = ''; };
+  const close = () => { list.hidden = true; q.setAttribute('aria-expanded', 'false'); };
+  const render = () => {
+    const t = q.value.trim(); const n = trLower(t);
+    const m = accs().filter((a) => !n || trLower(a.name).includes(n)).slice(0, 60);
+    const exact = m.some((a) => trLower(a.name) === n);
+    list.innerHTML = `${!exact ? `<button type="button" class="acco new" data-new="1">${ic('plus')}<span>${t ? `Yeni oluştur: <b>${esc(t)}</b>` : 'Yeni firma oluştur'}</span></button>` : ''}${f.req ? '' : '<button type="button" class="acco" data-id="">— boş bırak</button>'}${m.map((a) => `<button type="button" class="acco" data-id="${esc(a.id)}"><span>${esc(a.name)}</span>${a.city ? `<small>${esc(a.city)}</small>` : ''}</button>`).join('')}${!m.length && t ? '<div class="acco-empty">Kayıtlı firma bulunamadı</div>' : ''}`;
+    list.hidden = false; q.setAttribute('aria-expanded', 'true');
+  };
+  q.addEventListener('focus', render);
+  q.addEventListener('input', () => { if (hid.value !== '__new__') hid.value = ''; render(); });
+  list.addEventListener('pointerdown', (e) => e.preventDefault());
+  list.addEventListener('click', (e) => {
+    const b = e.target.closest('.acco'); if (!b) return;
+    if (b.dataset.new) { setNew(true); close(); if (!q.value.trim()) { q.placeholder = 'Yeni firmanın adını yazın'; q.focus(); } return; }
+    setNew(false); hid.value = b.dataset.id; const a = accs().find((x) => x.id === b.dataset.id); q.value = a ? a.name : ''; close();
+  });
+  q.addEventListener('blur', () => setTimeout(() => {
+    close(); if (hid.value === '__new__') return;
+    const n = trLower(q.value.trim()); if (!n) { hid.value = ''; return; }
+    const a = accs().find((x) => trLower(x.name) === n); if (a) { hid.value = a.id; q.value = a.name; }
+  }, 120));
+  nw.querySelector('[data-accnew=cancel]').addEventListener('click', () => { setNew(false); q.value = ''; q.placeholder = 'Firma ara veya yeni ad yaz'; q.focus(); });
+  return {
+    // kayıt öncesi: seçim yoksa uyar, yeni firma varsa kaydet ve kimliğini döndür
+    async resolve(frm) {
+      if (hid.value !== '__new__') {
+        if (!hid.value && q.value.trim()) return { err: `"${q.value.trim()}" kayıtlı değil. Listeden seçin ya da "Yeni oluştur"a dokunun.` };
+        return { id: hid.value };
+      }
+      const name = q.value.trim(); if (!name) return { err: 'Yeni firmanın adını yazın.' };
+      const dup = accs().find((x) => trLower(x.name) === trLower(name)); if (dup) return { id: dup.id };
+      const g = (k) => (frm.elements[k] && frm.elements[k].value ? frm.elements[k].value.trim() : '');
+      const rec = { name, type: nw.querySelector('[data-accnew=type]').value, status: 'aktif', ownerId: S.user.uid, contacts: g('contactName') ? [{ name: g('contactName'), title: '', phone: g('phone'), email: g('email') }] : [] };
+      if (g('phone')) rec.phone = g('phone');
+      const id = await S.store.save('accounts', stamp(rec));
+      hid.value = id; nw.hidden = true; toast(`"${name}" firmalara eklendi`);
+      return { id };
+    },
+  };
+}
 function fieldHtml(f, data) {
+  if (isAccPick(f)) return accPickHtml(f, data);
   if (f.type === 'section') return `<div class="fld fsec"><h4>${esc(f.label)}</h4>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
   if (f.type === 'rows') {
     const rows = data[f.k] || [];
@@ -296,12 +356,15 @@ export function openForm({ title, fields, data = {}, onSave, onDelete, saveLabel
     <div class="mf">${onDelete ? '<button type="button" class="btn danger sp" id="frmDel">Sil</button>' : ''}<button type="button" class="btn" data-act="closeModal">Vazgeç</button><button class="btn pri" type="submit">${esc(saveLabel)}</button></div>
   </form></div>`;
   const frm = $('#frm', r);
+  const pickers = {}; fields.filter(isAccPick).forEach((f) => { const b = $(`[data-accpick="${f.k}"]`, frm); if (b) pickers[f.k] = wireAccPick(b, f); });
   const showErr = (m) => { const e = $('#frmErr', r); e.textContent = m; e.hidden = false; e.scrollIntoView({ block: 'nearest' }); };
   frm.onsubmit = async (ev) => {
     ev.preventDefault();
-    const out = {};
+    const out = {}; const accRes = {};
+    for (const [k, p] of Object.entries(pickers)) { const r2 = await p.resolve(frm); if (r2.err) { showErr(r2.err); $(`#f_${k}_q`, frm).focus(); return; } accRes[k] = r2.id; }
     for (const f of fields) {
       if (f.type === 'section') continue;
+      if (accRes[f.k] !== undefined) { if (f.req && !accRes[f.k]) { showErr(`"${f.label}" alanı boş bırakılamaz.`); $(`#f_${f.k}_q`, frm).focus(); return; } out[f.k] = accRes[f.k]; continue; }
       if (f.type === 'rows') { out[f.k] = readRows(frm, f); continue; }
       const el = frm.elements[f.k];
       let v = el.value.trim();
