@@ -134,12 +134,13 @@ export const mk = (k, mode) => (k.endsWith('!') ? k.slice(0, -1) : (mode || S.pe
 
 function bars(series, opts = {}) {
   // series: [{label, v, lyv, title}] -> SVG sütun grafiği
-  const W = 760, H = opts.h || 200, pb = 24, pt = 10; const n = Math.max(1, series.length); const cw = W / n;
+  const narrow = typeof matchMedia === 'function' && matchMedia('(max-width:640px)').matches;
+  const W = narrow ? 400 : 760, H = opts.h || (narrow ? 190 : 200), pb = 24, pt = 10; const n = Math.max(1, series.length); const cw = W / n;
   const max = Math.max(opts.max || 0, 1, ...series.map((s) => Math.max(s.v || 0, s.lyv || 0)));
   const y = (v) => pt + (H - pt - pb) * (1 - (v || 0) / max);
   const bw = Math.max(2, Math.min(22, cw * (series.some((s) => s.lyv != null) ? 0.38 : 0.7)));
   let g = ''; for (let i = 0; i <= 3; i++) { const yy = pt + ((H - pt - pb) * i) / 3; g += `<line x1="0" x2="${W}" y1="${yy}" y2="${yy}" stroke="#E2E7EF"/>`; }
-  const every = Math.ceil(n / 16);
+  const every = Math.ceil(n / (narrow ? 8 : 16));
   series.forEach((s, i) => {
     const x = cw * i + cw / 2; const two = s.lyv != null;
     if (two) g += `<rect x="${x - bw - 1}" y="${y(s.lyv)}" width="${bw}" height="${H - pb - y(s.lyv)}" fill="#CBD5E2" rx="1.5"><title>${esc(s.label)} geçen yıl: ${esc(opts.fmt ? opts.fmt(s.lyv) : s.lyv)}</title></rect>`;
@@ -177,25 +178,28 @@ V.perf = {
     const otbRm = otbS.reduce((s, x) => s + x.rm, 0), otbRev = otbS.reduce((s, x) => s + x.rev, 0); const asOf = sortBy(P.otb.filter((r) => hotelsOf(h).includes(r.hotel)), (r) => r.asOf, -1).map((r) => r.asOf)[0];
     const cmpRow = (lab, a, l) => `<tr><td>${lab}</td>${METRICS.map(([k0, , f, isP]) => { const k = mk(k0); return `<td class="n">${a ? f(a[k]) : '—'}<div class="sub">${l && l[k] != null ? `${f(l[k])} · ${chg(a && a[k], l[k], isP)}` : ''}</div></td>`; }).join('')}</tr>`;
     S.perfLast = { h, d, day, dly, mtd, mly, ytd, yly, months, otbS };
+    // telefon: metrikler satırda, gün / ay / yıl sütunda
+    const cmpMob = () => { const P3 = [['Gün', esc(fmtDate(d)), day, dly], ['Ay', esc(MONTHS[Number(d.slice(5, 7)) - 1]), mtd, mly], ['Yıl', esc(yr), ytd, yly]];
+      return `<table class="tb perf-t perf-mt"><tr><th></th>${P3.map(([l, s]) => `<th class="n">${l}<div class="sub">${s}</div></th>`).join('')}</tr>${METRICS.map(([k0, l, f, isP]) => { const k = mk(k0); return `<tr><td>${l}</td>${P3.map(([, , a, b]) => `<td class="n">${a ? f(a[k]) : '—'}${b && b[k] != null ? `<div class="sub">${f(b[k])}</div><div class="sub">${chg(a && a[k], b[k], isP)}</div>` : ''}</td>`).join('')}</tr>`; }).join('')}</table>`; };
     return `<div class="perf">
       <div class="perfbar"><div class="seg" role="group" aria-label="Otel">${[['all', 'İki otel'], ...Object.entries(HOTELS)].map(([k, l]) => `<button class="${h === k ? 'on' : ''}" data-act="perfHotel" data-h="${k}" aria-pressed="${h === k}">${esc(l)}</button>`).join('')}</div>
         <div class="seg" role="group" aria-label="Tutarlar"><button class="${G ? '' : 'on'}" data-act="perfMode" data-m="net" aria-pressed="${!G}">Net</button><button class="${G ? 'on' : ''}" data-act="perfMode" data-m="gross" aria-pressed="${G}">Brüt</button></div>
         <label class="perfdate">İş günü <input type="date" class="inp" value="${esc(d)}" max="${esc(ld)}" data-change="perfDate" aria-label="İş günü"></label>
-        <span class="muted" style="font-size:12.5px;margin-left:auto">${P.loading ? 'güncelleniyor…' : P.err ? `<span style="color:#B4432E">${esc(P.err)}</span>` : P.at ? `son güncelleme ${esc(new Date(P.at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }))}` : ''}</span></div>
+        <span class="muted perfat">${P.loading ? 'güncelleniyor…' : P.err ? `<span style="color:#B4432E">${esc(P.err)}</span>` : P.at ? `son güncelleme ${esc(new Date(P.at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }))}` : ''}</span></div>
       <div class="kband">
         <div class="kb"><small>Doluluk · ${esc(fmtDate(d))}</small><b>${pct(day.occPct)}</b>${dly ? `<em>${chg(day.occPct, dly.occPct, true)} geçen yıl ${pct(dly.occPct)}</em>` : '<em>geçen yıl verisi yok</em>'}<span class="kfoot">${fmtNum(day.occ)} / ${fmtNum(day.rooms)} oda</span></div>
         ${[['adr', 'adrG', 'Oda ADR', 'yalnız oda'], ['sadr', 'sadrG', 'Satış ADR', 'oda + kahvaltı'], ['bfpr', 'bfprG', 'Kahvaltı / oda', 'pansiyon kahvaltı']].map(([kn, kg, l, sub]) => `<div class="kb"><small>${l} · ${sub}</small><b>${kmoney(day[kn])}</b><em>brüt <b class="gb">${kmoney(day[kg])}</b></em>${dly && dly[kn] != null ? `<span class="kfoot">${chg(day[kn], dly[kn])} geçen yıl ${kmoney(dly[kn])}</span>` : ''}</div>`).join('')}
         ${[['roomRev', 'Oda geliri'], ['totalRev', 'Toplam gelir']].map(([k0, l]) => { const k = mk(k0); return `<div class="kb"><small>${l} · ${G ? 'brüt' : 'net'}</small><b>${kmoney(day[k])}</b>${dly && dly[k] != null ? `<em>${chg(day[k], dly[k])} geçen yıl ${kmoney(dly[k])}</em>` : '<em>geçen yıl verisi yok</em>'}</div>`; }).join('')}
       </div>
       <div class="card" style="margin-bottom:14px"><div class="pad" style="padding-bottom:6px"><h3 style="margin:0">Gün, ay ve yıl · geçen yılla</h3><p class="muted" style="margin:4px 0 0;font-size:12.5px">Alt satırda geçen yılın aynı dönemi ve değişim. Tutarlar ${G ? 'vergiler dahil (brüt)' : 'vergiler hariç (net)'}, ₺. Satış ADR = (oda + pansiyon kahvaltı) ÷ satılan oda. Brüt: oda ve kahvaltıya KDV %${TF.kdv} + konaklama vergisi %${TF.kv}, restorana KDV %${TF.kdv}${day.est || mtd.est ? '; brüt raporu olmayan günlerde bu oranlarla hesaplandı' : ''}.</p></div>
-        <div class="scroll-x"><table class="tb perf-t"><tr><th></th>${METRICS.map(([, l]) => `<th class="n">${l}</th>`).join('')}</tr>
+        <div class="only-m">${cmpMob()}</div><div class="scroll-x only-d"><table class="tb perf-t"><tr><th></th>${METRICS.map(([, l]) => `<th class="n">${l}</th>`).join('')}</tr>
         ${cmpRow(`Gün<div class="sub">${esc(fmtDate(d))}</div>`, day, dly)}${cmpRow(`Ay başından<div class="sub">${esc(MONTHS[Number(d.slice(5, 7)) - 1])}</div>`, mtd, mly)}${cmpRow(`Yıl başından<div class="sub">${esc(yr)}</div>`, ytd, yly)}</table></div></div>
       <div class="grid g2">
         <div class="card pad"><h3>Doluluk · son 30 gün</h3>${bars(s30, { fmt: pct, max: 100, aria: 'Son 30 gün doluluk' })}<p class="muted" style="font-size:12px;margin:2px 0 0">Koyu: ${yr} · gri: geçen yılın aynı günü</p></div>
         <div class="card pad"><h3>Önümüzdeki 30 gün · kesin rezervasyon</h3>${asOf ? `${bars(otbS, { fmt: pct, max: 100, aria: 'Önümüzdeki 30 gün doluluk' })}<p class="muted" style="font-size:12px;margin:2px 0 0">${fmtNum(otbRm)} oda-gece · ${kmoney(otbRev)} oda geliri · ${esc(fmtDate(asOf))} raporuna göre</p>` : '<span class="muted">Forecast raporu işlenmedi.</span>'}</div>
         <div class="card" style="grid-column:1/-1"><div class="pad" style="padding-bottom:4px"><h3 style="margin:0">${esc(yr)} aylık · geçen yılla</h3></div>
           <div class="pad" style="padding-top:4px">${bars(months.map((m) => ({ label: m.label, v: m.a ? m.a.roomRev : 0, lyv: m.l ? m.l.roomRev : 0 })), { fmt: kmoney, aria: 'Aylık oda geliri' })}<p class="muted" style="font-size:12px;margin:2px 0 8px">Oda geliri · koyu: ${yr} · gri: ${Number(yr) - 1}. Yalnızca işlenmiş gece raporlarındaki günler toplanır.</p></div>
-          <div class="scroll-x"><table class="tb perf-t"><tr><th>Ay</th><th class="n">Gün</th><th class="n">Doluluk</th><th class="n">Oda-gece</th><th class="n">Oda ADR<div class="sub">net · brüt</div></th><th class="n">Satış ADR<div class="sub">net · brüt</div></th><th class="n">RevPAR</th><th class="n">Oda geliri</th><th class="n">Kahvaltı</th><th class="n">Restoran / Y-İ</th><th class="n">Toplam gelir</th><th class="n">Toplam · geçen yıl</th></tr>
+          <div class="scroll-x"><table class="tb perf-t perf-mon"><tr><th>Ay</th><th class="n">Gün</th><th class="n">Doluluk</th><th class="n">Oda-gece</th><th class="n">Oda ADR<div class="sub">net · brüt</div></th><th class="n">Satış ADR<div class="sub">net · brüt</div></th><th class="n">RevPAR</th><th class="n">Oda geliri</th><th class="n">Kahvaltı</th><th class="n">Restoran / Y-İ</th><th class="n">Toplam gelir</th><th class="n">Toplam · geçen yıl</th></tr>
           ${months.filter((m) => m.a || m.l).map((m) => `<tr><td>${esc(MONTHS[Number(m.m.slice(5)) - 1])}</td><td class="n">${m.a ? m.a.n / hotelsOf(h).length : 0}</td><td class="n">${m.a ? pct(m.a.occPct) : '—'}</td><td class="n">${m.a ? fmtNum(m.a.occ) : '—'}</td><td class="n">${m.a ? `${kmoney(m.a.adr)}<div class="sub">${kmoney(m.a.adrG)}</div>` : '—'}</td><td class="n">${m.a && m.a.sadr != null ? `${kmoney(m.a.sadr)}<div class="sub">${kmoney(m.a.sadrG)}</div>` : '—'}</td><td class="n">${m.a ? kmoney(m.a[mk('revpar')]) : '—'}</td><td class="n">${m.a ? kmoney(m.a[mk('roomRev')]) : '—'}</td><td class="n">${m.a && m.a.bfRev != null ? kmoney(m.a[G ? 'bfRevG' : 'bfRev']) : '—'}</td><td class="n">${m.a ? kmoney(m.a.restRev != null ? m.a[G ? 'restRevG' : 'restRev'] : m.a[mk('fbRev')]) : '—'}</td><td class="n"><b>${m.a ? kmoney(m.a[mk('totalRev')]) : '—'}</b></td><td class="n">${m.l ? `${kmoney(m.l[mk('totalRev')])} ${m.a ? chg(m.a[mk('totalRev')], m.l[mk('totalRev')]) : ''}` : '—'}</td></tr>`).join('') || `<tr><td colspan="11" class="muted">Bu yıl için işlenmiş gün yok.</td></tr>`}</table></div></div>
       </div></div>`;
   },
