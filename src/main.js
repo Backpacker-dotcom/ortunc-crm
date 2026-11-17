@@ -24,6 +24,7 @@ import './rates.js';
 import './blocks.js';
 import './mice.js';
 import './loyalty.js';
+import './update.js';
 A._openForm = openForm;
 import { cfFormFields, cfCard, cfPairs, applyStages, cfOf, CF_COLS } from './customize.js';
 import { applyBrand } from './views.js';

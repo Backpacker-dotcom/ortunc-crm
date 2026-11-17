@@ -158,10 +158,14 @@ jobs:
                       "https://cdn.jsdelivr.net/gh/__REPO__@main/index.html"
               };
               static final int REQ_FILE = 41, REQ_EXPORT = 43, MIN_SIZE = 200000;
+              // Kabuk sürümü: bu Java kodu değişince 1 artırın. Eski APK'yı kullananlara ekranda "yeni sürüm var · İndir" çıkar.
+              static final int SHELL = 2;
               WebView web, printView;
               byte[] pendingExport;
               private ValueCallback<Uri[]> fileCb;
               private long lastFetch = 0;
+              // Ekranda açık olan sayfanın imzası (uzunluk:değişme zamanı); yeni indirilen dosya bundan farklıysa bildirilir
+              private volatile String servedSig = "asset";
 
               void js(final String code) { runOnUiThread(() -> { if (web != null) web.evaluateJavascript(code, null); }); }
               void toast(String msg) { js("window.onNativeToast&&window.onNativeToast(" + org.json.JSONObject.quote(msg) + ")"); }
@@ -230,6 +234,7 @@ jobs:
                   });
                   web.loadUrl(START);
                   new Thread(this::fetchUpdate).start();
+                  // Not: sayfa ilk yüklenirken onNativeUpdate tanımlı olmayabilir; JS tarafı açılışta checkUpdate() ile yeniden sorar.
               }
 
               @Override
@@ -252,6 +257,26 @@ jobs:
               }
 
               class Bridge {
+                  @JavascriptInterface
+                  public int shellVersion() { return SHELL; }
+
+                  @JavascriptInterface
+                  public void reload() { runOnUiThread(() -> { if (web != null) web.reload(); }); }
+
+                  @JavascriptInterface
+                  public void checkUpdate() {
+                      if (System.currentTimeMillis() - lastFetch > 60000) new Thread(MainActivity.this::fetchUpdate).start();
+                      else if (newerOnDisk()) js("window.onNativeUpdate&&window.onNativeUpdate()");
+                  }
+
+                  @JavascriptInterface
+                  public void openUrl(final String url) {
+                      if (url == null || !url.startsWith("https://github.com/")) return;
+                      runOnUiThread(() -> {
+                          try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception e) { toast("Tarayıcı açılamadı"); }
+                      });
+                  }
+
                   @JavascriptInterface
                   public void copy(final String text) {
                       runOnUiThread(() -> {
@@ -302,11 +327,20 @@ jobs:
               private InputStream openPage() {
                   try {
                       File f = new File(getFilesDir(), "index.html");
-                      if (f.exists() && f.length() > MIN_SIZE) return new FileInputStream(f);
+                      if (f.exists() && f.length() > MIN_SIZE) { servedSig = sig(f); return new FileInputStream(f); }
+                      servedSig = "asset";
                       return getAssets().open("index.html");
                   } catch (Exception e) {
                       return new ByteArrayInputStream("<p style=\"font-family:sans-serif;padding:24px\">Sayfa açılamadı.</p>".getBytes(StandardCharsets.UTF_8));
                   }
+              }
+
+              static String sig(File f) { return f.length() + ":" + f.lastModified(); }
+
+              // İndirilmiş dosya ekrandaki sayfadan yeniyse true
+              boolean newerOnDisk() {
+                  File f = new File(getFilesDir(), "index.html");
+                  return f.exists() && f.length() > MIN_SIZE && !sig(f).equals(servedSig);
               }
 
               @Override
@@ -315,8 +349,13 @@ jobs:
                   if (System.currentTimeMillis() - lastFetch > 600000) new Thread(this::fetchUpdate).start();
               }
 
-              // İndirilen sürüm bir sonraki açılışta devreye girer; açık formu bozmamak için sayfa zorla yenilenmez
-              private synchronized void fetchUpdate() {
+              // Yeni sürüm indirilince sayfa zorla yenilenmez (açık form bozulmasın); ekranda "Yeni sürüm hazır · Yenile" çıkar
+              private void fetchUpdate() {
+                  fetchOnce();
+                  if (newerOnDisk()) js("window.onNativeUpdate&&window.onNativeUpdate()");
+              }
+
+              private synchronized void fetchOnce() {
                   lastFetch = System.currentTimeMillis();
                   for (String src : REMOTE) {
                       try {

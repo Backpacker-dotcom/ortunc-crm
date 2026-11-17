@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 const cfgPath = 'firebase-config.json';
 const cfg = !process.env.DEMO && fs.existsSync(cfgPath) ? JSON.parse(fs.readFileSync(cfgPath, 'utf8')) : null;
 const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
@@ -15,6 +16,12 @@ const fontCss = [['ibm-plex-sans', [400, 500, 600]], ['ibm-plex-sans-condensed',
 })).join('\n');
 const css = fontCss + '\n' + fs.readFileSync('src/style.css', 'utf8').replace(/\s*\n\s*/g, '\n');
 const html = fs.readFileSync('src/index.tmpl.html', 'utf8').replace('/*__CSS__*/', () => css).replace('/*__JS__*/', () => js);
+// Sürüm kimliği: içerik değişince değişir. Uygulama version.json'daki build ile kendi build'ini karşılaştırır.
+const buildId = crypto.createHash('sha256').update(html).digest('hex').slice(0, 12);
+// APK kabuk sürümü android.yml'deki MainActivity içinde tutulur (static final int SHELL = N;)
+const shell = Number((fs.readFileSync('.github/workflows/android.yml', 'utf8').match(/static final int SHELL = (\d+);/) || [])[1] || 1);
+const finalHtml = html.replace(/__BUILD__/g, buildId);
 const out = process.env.OUT || 'index.html';
-fs.writeFileSync(out, html);
-console.log('index.html', (html.length / 1024).toFixed(0) + ' KB', cfg ? 'firebase: ' + cfg.projectId : 'firebase config yok (kurulum ekranı)');
+fs.writeFileSync(out, finalHtml);
+if (!process.env.OUT) fs.writeFileSync('version.json', JSON.stringify({ version, build: buildId, shell }) + '\n');
+console.log('index.html', 'build ' + buildId, 'shell ' + shell, (finalHtml.length / 1024).toFixed(0) + ' KB', cfg ? 'firebase: ' + cfg.projectId : 'firebase config yok (kurulum ekranı)');
